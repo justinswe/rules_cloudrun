@@ -1,0 +1,10 @@
+# Enable bzlmod for MODULE.bazel support
+common --enable_bzlmod
+
+# Import Aspect's convenience helpers for linting
+try-import %workspace%/.aspect/bazelrc/convenience.bazelrc
+try-import %workspace%/.aspect/bazelrc/correctness.bazelrc
+
+# Configuration for aspect_rules_lint
+build --@aspect_rules_lint//lint:fail_on_violation
+test --@aspect_rules_lint//lint:fail_on_violation

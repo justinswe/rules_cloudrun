@@ -1,0 +1,7 @@
+load("@aspect_rules_lint//format:defs.bzl", "format_multirun")
+
+# Define format target that can be run with `bazel run //:format`
+format_multirun(
+    name = "format",
+    visibility = ["//visibility:public"],
+)

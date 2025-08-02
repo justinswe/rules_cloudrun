@@ -1,6 +1,7 @@
 .DS_Store
 
 # bazel
-bazel-bin/
-bazel-out/
-bazel-testlogs/
+bazel-bin
+bazel-out
+bazel-testlogs
+bazel-rules*

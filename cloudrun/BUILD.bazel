@@ -1,0 +1,5 @@
+# Export the public macros for use in other BUILD files
+exports_files([
+    "config.bzl",
+    "deploy.bzl",
+])
