@@ -21,17 +21,14 @@ def _cloudrun_deploy_impl(ctx):
     if ctx.file.secrets_flags:
         input_files.append(ctx.file.secrets_flags)
 
-    # Generate wrapper script that calls the execute script with proper arguments
+    # Generate wrapper script with embedded execute logic
     wrapper_script = """#!/bin/bash
 set -euo pipefail
 
 # Find runfiles directory
 RUNFILES_DIR="$0.runfiles/_main"
 
-# Path to the execute script
-EXECUTE_SCRIPT="$RUNFILES_DIR/tools/cloudrun/private/execute_script"
-
-# Arguments to pass to execute script
+# Arguments from build rule
 SERVICE_NAME="{service_name}"
 REGION="{region}"
 SOURCE="{source}"
@@ -42,8 +39,79 @@ ENV_VARS_INPUT="{env_vars_input}"
 SECRETS_INPUT="{secrets_input}"
 ADDITIONAL_FLAGS="{additional_flags}"
 
-# Execute the script with all arguments
-exec "$EXECUTE_SCRIPT" "$SERVICE_NAME" "$REGION" "$SOURCE" "$SERVICE_ACCOUNT" "$TOP_LEVEL_INPUT" "$RUN_CONFIG_INPUT" "$ENV_VARS_INPUT" "$SECRETS_INPUT" "$ADDITIONAL_FLAGS" "$@"
+# Check if --image flag is passed in arguments
+USE_IMAGE=false
+for arg in "$@"; do
+    if [[ "$arg" == --image* ]]; then
+        USE_IMAGE=true
+        break
+    fi
+done
+
+# Start building the gcloud command
+GCLOUD_CMD="gcloud run deploy $SERVICE_NAME"
+
+# Add region if specified
+if [ -n "$REGION" ]; then
+    GCLOUD_CMD="$GCLOUD_CMD --region=$REGION"
+fi
+
+# Add platform
+GCLOUD_CMD="$GCLOUD_CMD --platform=managed"
+
+# Add source if specified and no --image flag is being used
+if [ -n "$SOURCE" ] && [ "$USE_IMAGE" = false ]; then
+    GCLOUD_CMD="$GCLOUD_CMD --source=$SOURCE"
+fi
+
+# Add service account if specified
+if [ -n "$SERVICE_ACCOUNT" ]; then
+    GCLOUD_CMD="$GCLOUD_CMD --service-account=$SERVICE_ACCOUNT"
+fi
+
+# Add top-level config flags (including serviceAccount from config file)
+if [ -n "$TOP_LEVEL_INPUT" ] && [ -f "$TOP_LEVEL_INPUT" ]; then
+    top_level_flags=$(cat "$TOP_LEVEL_INPUT")
+    if [ -n "$top_level_flags" ]; then
+        GCLOUD_CMD="$GCLOUD_CMD $top_level_flags"
+    fi
+fi
+
+# Add run config flags
+if [ -n "$RUN_CONFIG_INPUT" ] && [ -f "$RUN_CONFIG_INPUT" ]; then
+    run_config=$(cat "$RUN_CONFIG_INPUT")
+    if [ -n "$run_config" ]; then
+        GCLOUD_CMD="$GCLOUD_CMD $run_config"
+    fi
+fi
+
+# Add environment variables
+if [ -n "$ENV_VARS_INPUT" ] && [ -f "$ENV_VARS_INPUT" ]; then
+    env_vars=$(cat "$ENV_VARS_INPUT")
+    if [ -n "$env_vars" ]; then
+        GCLOUD_CMD="$GCLOUD_CMD $env_vars"
+    fi
+fi
+
+# Add secrets
+if [ -n "$SECRETS_INPUT" ] && [ -f "$SECRETS_INPUT" ]; then
+    secrets=$(cat "$SECRETS_INPUT")
+    if [ -n "$secrets" ]; then
+        GCLOUD_CMD="$GCLOUD_CMD $secrets"
+    fi
+fi
+
+# Add any additional flags
+if [ -n "$ADDITIONAL_FLAGS" ]; then
+    GCLOUD_CMD="$GCLOUD_CMD $ADDITIONAL_FLAGS"
+fi
+
+# Display the command being executed
+echo "Executing: $GCLOUD_CMD" "$@"
+echo
+
+# Execute the gcloud command
+exec $GCLOUD_CMD "$@"
 """.format(
         service_name = ctx.attr.service_name,
         region = ctx.attr.region,
@@ -62,9 +130,8 @@ exec "$EXECUTE_SCRIPT" "$SERVICE_NAME" "$REGION" "$SOURCE" "$SERVICE_ACCOUNT" "$
         is_executable = True,
     )
 
-    # Include the execute script and input config files in runfiles
-    all_runfiles = input_files + [ctx.executable._execute_script]
-    runfiles = ctx.runfiles(files = all_runfiles)
+    # Include input config files in runfiles
+    runfiles = ctx.runfiles(files = input_files)
 
     return [DefaultInfo(
         files = depset([output]),
@@ -111,11 +178,7 @@ _cloudrun_deploy = rule(
             default = [],
             doc = "Additional gcloud run deploy flags",
         ),
-        "_execute_script": attr.label(
-            default = "//tools/cloudrun/private:execute_script",
-            executable = True,
-            cfg = "exec",
-        ),
+
     },
     doc = "Generates complete gcloud run deploy command with all flags",
     executable = True,

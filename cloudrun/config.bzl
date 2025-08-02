@@ -110,7 +110,7 @@ parse_run_config = rule(
             doc = "Base configuration YAML file for defaults",
         ),
         "_script": attr.label(
-            default = "//tools/cloudrun/private:parse_run_config_script",
+            default = "//cloudrun/private:parse_run_config_script",
             executable = True,
             cfg = "exec",
         ),
@@ -159,7 +159,7 @@ parse_env_vars = rule(
             doc = "Base configuration YAML file for defaults",
         ),
         "_script": attr.label(
-            default = "//tools/cloudrun/private:parse_env_vars_script",
+            default = "//cloudrun/private:parse_env_vars_script",
             executable = True,
             cfg = "exec",
         ),
@@ -208,7 +208,7 @@ parse_secrets = rule(
             doc = "Base configuration YAML file for defaults",
         ),
         "_script": attr.label(
-            default = "//tools/cloudrun/private:parse_secrets_script",
+            default = "//cloudrun/private:parse_secrets_script",
             executable = True,
             cfg = "exec",
         ),
@@ -257,7 +257,7 @@ parse_top_level_config = rule(
             doc = "Base configuration YAML file for defaults",
         ),
         "_script": attr.label(
-            default = "//tools/cloudrun/private:parse_top_level_config_script",
+            default = "//cloudrun/private:parse_top_level_config_script",
             executable = True,
             cfg = "exec",
         ),

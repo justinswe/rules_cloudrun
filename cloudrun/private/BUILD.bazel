@@ -4,33 +4,33 @@ load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
 sh_binary(
     name = "parse_run_config_script",
     srcs = ["parse_run_config.sh"],
-    visibility = ["//tools/cloudrun:__pkg__"],
+    visibility = ["//cloudrun:__pkg__"],
 )
 
 # Parse environment variables script
 sh_binary(
     name = "parse_env_vars_script",
     srcs = ["parse_env_vars.sh"],
-    visibility = ["//tools/cloudrun:__pkg__"],
+    visibility = ["//cloudrun:__pkg__"],
 )
 
 # Parse secrets script
 sh_binary(
     name = "parse_secrets_script",
     srcs = ["parse_secrets.sh"],
-    visibility = ["//tools/cloudrun:__pkg__"],
+    visibility = ["//cloudrun:__pkg__"],
 )
 
 # Parse top-level config script
 sh_binary(
     name = "parse_top_level_config_script",
     srcs = ["parse_top_level_config.sh"],
-    visibility = ["//tools/cloudrun:__pkg__"],
+    visibility = ["//cloudrun:__pkg__"],
 )
 
 # Execute deployment script
 sh_binary(
     name = "execute_script",
     srcs = ["execute.sh"],
-    visibility = ["//tools/cloudrun:__pkg__"],
+    visibility = ["//cloudrun:__pkg__"],
 )
