@@ -1,0 +1,48 @@
+load("@rules_cloudrun//:defs.bzl", "cloudrun_deploy")
+
+# Example 1: Simple deployment with a single config file
+cloudrun_deploy(
+    name = "deploy_myapp",
+    service_name = "myapp",
+    config = ":config.yaml",
+    region = "us-central1",
+    source = ".",
+    additional_flags = ["--allow-unauthenticated"],
+)
+
+# Example 2: Deployment with base config and environment-specific config
+cloudrun_deploy(
+    name = "deploy_myapp_prod",
+    service_name = "myapp",
+    config = ":config.prod.yaml",
+    base_config = ":config.yaml",
+    region = "us-central1",
+    source = ".",
+    service_account = "myapp-prod@my-project.iam.gserviceaccount.com",
+)
+
+# Example 3: Multi-environment deployment using env_configs
+cloudrun_deploy(
+    name = "deploy_myapp_all",
+    service_name = "myapp",
+    base_config = ":config.yaml",
+    env_configs = {
+        "dev": ":config.dev.yaml",
+        "staging": ":config.staging.yaml", 
+        "prod": ":config.prod.yaml",
+    },
+    region = "us-central1",
+    source = ".",
+)
+
+# Example 4: Deployment from container image
+cloudrun_deploy(
+    name = "deploy_myapp_image",
+    service_name = "myapp",
+    config = ":config.yaml",
+    region = "us-central1",
+    additional_flags = [
+        "--image=gcr.io/my-project/myapp:latest",
+        "--allow-unauthenticated",
+    ],
+)

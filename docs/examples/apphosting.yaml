@@ -1,0 +1,12 @@
+runConfig:
+  minInstances: 0
+  maxInstances: 3
+  concurrency: 1000
+  cpu: 1
+  memoryMiB: 512
+
+env:
+  - variable: DATABASE_URL
+    value: "postgresql://localhost:5432/myapp"
+  - variable: LOG_LEVEL
+    value: "info"
