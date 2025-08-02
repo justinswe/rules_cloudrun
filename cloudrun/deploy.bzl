@@ -48,8 +48,12 @@ for arg in "$@"; do
     fi
 done
 
-# Start building the gcloud command
-GCLOUD_CMD="gcloud run deploy $SERVICE_NAME"
+# Start building the gcloud command based on type
+if [ "{job}" = "True" ]; then
+    GCLOUD_CMD="gcloud run jobs deploy $SERVICE_NAME"
+else
+    GCLOUD_CMD="gcloud run deploy $SERVICE_NAME"
+fi
 
 # Add region if specified
 if [ -n "$REGION" ]; then
@@ -117,6 +121,7 @@ exec $GCLOUD_CMD "$@"
         region = ctx.attr.region,
         source = ctx.attr.source,
         service_account = ctx.attr.service_account,
+        job = ctx.attr.job,
         top_level_input = input_files[0].short_path if len(input_files) > 0 else "",
         run_config_input = input_files[1].short_path if len(input_files) > 1 else "",
         env_vars_input = input_files[2].short_path if len(input_files) > 2 else "",
@@ -144,7 +149,11 @@ _cloudrun_deploy = rule(
     attrs = {
         "service_name": attr.string(
             mandatory = True,
-            doc = "Name of the Cloud Run service",
+            doc = "Name of the Cloud Run service or job",
+        ),
+        "job": attr.bool(
+            default = False,
+            doc = "Whether to deploy as a Cloud Run job instead of service",
         ),
         "region": attr.string(
             default = "",
@@ -196,22 +205,24 @@ _cloudrun_deploy = rule(
 #     additional_flags = additional_flags,
 # )
 
-def cloudrun_deploy(name, service_name, region = "", source = "", service_account = "", additional_flags = [], config = None, base_config = None, env_configs = {}):
+def cloudrun_deploy(name, service_name, region = "", source = "", service_account = "", additional_flags = [], config = None, base_config = None, env_configs = {}, job = False):
     """
     Creates a deployable target that generates and executes gcloud run deploy command.
 
     Args:
         name: Name of the target
         config: Label pointing to the service configuration YAML file
-        service_name: Name of the Cloud Run service to deploy
+        service_name: Name of the Cloud Run service or job to deploy
         region: GCP region for deployment (optional)
         source: Source directory or image for deployment (optional)
-        service_account: Service account email for the Cloud Run service (optional)
-        additional_flags: Additional gcloud run deploy flags (optional)
+        service_account: Service account email for the Cloud Run service or job (optional)
+        additional_flags: Additional gcloud run deploy/jobs deploy flags (optional)
         base_config: Label pointing to base configuration YAML file for defaults (optional)
         env_configs: Dictionary of environment configurations (optional)
+        job: Whether to deploy as a Cloud Run job instead of service (optional, default False)
 
-    Example:
+    Examples:
+        # Deploy a Cloud Run service
         cloudrun_deploy(
             name = "deploy_lavndrapi",
             config = "//lavndrapi:svc_cfg.prd.yaml",
@@ -219,6 +230,15 @@ def cloudrun_deploy(name, service_name, region = "", source = "", service_accoun
             service_name = "lavndrapi",
             region = "us-central1",
             service_account = "my-service@project.iam.gserviceaccount.com",
+        )
+
+        # Deploy a Cloud Run job
+        cloudrun_deploy(
+            name = "deploy_data_processor",
+            config = "//jobs:processor_cfg.yaml",
+            service_name = "data-processor",
+            region = "us-central1",
+            job = True,
         )
 
     Usage:
@@ -254,6 +274,7 @@ def cloudrun_deploy(name, service_name, region = "", source = "", service_accoun
                 region = region,
                 source = source,
                 service_account = service_account,
+                job = job,
                 top_level_flags = ":" + top_level_name,
                 run_config_flags = ":" + run_config_name,
                 env_vars_flags = ":" + env_vars_name,
@@ -261,3 +282,29 @@ def cloudrun_deploy(name, service_name, region = "", source = "", service_accoun
                 additional_flags = additional_flags,
             )
         return
+
+    # Handle single config case
+    if config:
+        _cloudrun_service_config(
+            name = name + "_cfg",
+            config = config,
+            base_config = base_config,
+            service_name = service_name,
+            region = region,
+            source = source,
+            additional_flags = additional_flags,
+        )
+
+        _cloudrun_deploy(
+            name = name,
+            service_name = service_name,
+            region = region,
+            source = source,
+            service_account = service_account,
+            job = job,
+            top_level_flags = ":" + name + "_cfg_top_level",
+            run_config_flags = ":" + name + "_cfg_run_config",
+            env_vars_flags = ":" + name + "_cfg_env_vars",
+            secrets_flags = ":" + name + "_cfg_secrets",
+            additional_flags = additional_flags,
+        )
