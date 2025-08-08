@@ -60,8 +60,10 @@ if [ -n "$REGION" ]; then
     GCLOUD_CMD="$GCLOUD_CMD --region=$REGION"
 fi
 
-# Add platform
-GCLOUD_CMD="$GCLOUD_CMD --platform=managed"
+# Add platform for services only (jobs do not support --platform)
+if [ "{job}" != "True" ]; then
+    GCLOUD_CMD="$GCLOUD_CMD --platform=managed"
+fi
 
 # Add source if specified and no --image flag is being used
 if [ -n "$SOURCE" ] && [ "$USE_IMAGE" = false ]; then
@@ -77,6 +79,11 @@ fi
 if [ -n "$TOP_LEVEL_INPUT" ] && [ -f "$TOP_LEVEL_INPUT" ]; then
     top_level_flags=$(cat "$TOP_LEVEL_INPUT")
     if [ -n "$top_level_flags" ]; then
+        # Translate flags for jobs where necessary
+        if [ "{job}" = "True" ]; then
+            # jobs expect --set-cloudsql-instances instead of --add-cloudsql-instances
+            top_level_flags="${top_level_flags//--add-cloudsql-instances=/--set-cloudsql-instances=}"
+        fi
         GCLOUD_CMD="$GCLOUD_CMD $top_level_flags"
     fi
 fi
