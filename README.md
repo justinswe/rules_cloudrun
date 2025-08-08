@@ -31,15 +31,8 @@ module(
 git_override(
     module_name = "rules_cloudrun",
     remote = "https://github.com/justinswe/rules_cloudrun.git",
-    commit = "main",
+    commit = "f7fc419ceb40eb2405604f5b35e29fa06bba8c67",
 )
-
-# If using a specific commit or tag for reproducible builds:
-# git_override(
-#     module_name = "rules_cloudrun",
-#     remote = "https://github.com/justinswe/rules_cloudrun.git",
-#     commit = "3823f077335b20f585e7e15c4f025dc539d21b96",
-# )
 ```
 
 ### 2. Load the rule in your BUILD.bazel
