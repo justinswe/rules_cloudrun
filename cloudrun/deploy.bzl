@@ -82,7 +82,7 @@ if [ -n "$TOP_LEVEL_INPUT" ] && [ -f "$TOP_LEVEL_INPUT" ]; then
         # Translate flags for jobs where necessary
         if [ "{job}" = "True" ]; then
             # jobs expect --set-cloudsql-instances instead of --add-cloudsql-instances
-            top_level_flags="${top_level_flags//--add-cloudsql-instances=/--set-cloudsql-instances=}"
+            top_level_flags="${{top_level_flags//--add-cloudsql-instances=/--set-cloudsql-instances=}}"
         fi
         GCLOUD_CMD="$GCLOUD_CMD $top_level_flags"
     fi
