@@ -37,6 +37,7 @@ parse_top_level_config() {
 
 # Collect all flags in an array
 declare -a all_flags
+all_flags=()
 
 # Parse base config first (if provided) and collect flags
 if [ -n "$base_config" ] && [ -f "$base_config" ]; then

@@ -61,6 +61,7 @@ parse_env_vars() {
 
 # Collect all env vars in an array
 declare -a all_vars
+all_vars=()
 
 # Parse base config first (if provided) and collect env vars
 if [ -n "$base_config" ] && [ -f "$base_config" ]; then

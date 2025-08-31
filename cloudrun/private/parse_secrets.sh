@@ -61,6 +61,7 @@ parse_secrets() {
 
 # Collect all secrets in an array
 declare -a all_secrets_array
+all_secrets_array=()
 
 # Parse base config first (if provided) and collect secrets
 if [ -n "$base_config" ] && [ -f "$base_config" ]; then
