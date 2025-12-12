@@ -1,5 +1,10 @@
 load("@aspect_rules_lint//format:defs.bzl", "format_multirun")
 
+# Export public files for use in other packages
+exports_files([
+    "defs.bzl",
+])
+
 # Define format target that can be run with `bazel run //:format`
 format_multirun(
     name = "format",

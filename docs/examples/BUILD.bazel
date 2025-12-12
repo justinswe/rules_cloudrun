@@ -1,5 +1,12 @@
 load("@rules_cloudrun//:defs.bzl", "cloudrun_deploy")
 
+package(default_visibility = ["//visibility:public"])
+
+# Export test configuration files
+exports_files([
+    "test_multiregion.yaml",
+])
+
 # Example 1: Simple deployment with a single config file
 cloudrun_deploy(
     name = "deploy_myapp",
@@ -45,4 +52,63 @@ cloudrun_deploy(
         "--image=gcr.io/my-project/myapp:latest",
         "--allow-unauthenticated",
     ],
+)
+
+# Test Examples for Multi-Region Feature
+
+# Test 5: Single-region deployment (existing behavior validation)
+cloudrun_deploy(
+    name = "test_single_region",
+    config = ":test_multiregion.yaml",
+    service_name = "test-single-service",
+    region = "us-central1",
+    source = ".",
+    additional_flags = ["--allow-unauthenticated"],
+)
+
+# Test 6: Multi-region deployment
+cloudrun_deploy(
+    name = "test_multi_region",
+    config = ":test_multiregion.yaml",
+    service_name = "test-multi-service",
+    multi_region = True,
+    regions = ["us-central1", "europe-west1", "asia-east1"],
+    source = ".",
+    additional_flags = ["--allow-unauthenticated"],
+)
+
+# Test 7: Multi-region deployment with env_configs
+cloudrun_deploy(
+    name = "test_multi_region_envs",
+    base_config = ":config.yaml",
+    env_configs = {
+        "dev": ":config.dev.yaml",
+        "prod": ":config.prod.yaml",
+    },
+    service_name = "test-env-multi-service",
+    multi_region = True,
+    regions = ["us-central1", "europe-west1"],
+    source = ".",
+    additional_flags = ["--allow-unauthenticated"],
+)
+
+# Test 8: Cloud Run job (single region)
+cloudrun_deploy(
+    name = "test_job_single",
+    config = ":test_multiregion.yaml",
+    service_name = "test-job",
+    region = "us-central1",
+    job = True,
+    source = ".",
+)
+
+# Test 9: Cloud Run job (multi-region)
+cloudrun_deploy(
+    name = "test_job_multi",
+    config = ":test_multiregion.yaml",
+    service_name = "test-job-multi",
+    multi_region = True,
+    regions = ["us-central1", "europe-west1"],
+    job = True,
+    source = ".",
 )

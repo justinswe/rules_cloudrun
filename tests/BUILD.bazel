@@ -1,0 +1,65 @@
+load("//tests:utils.bzl", "cloudrun_command_test")
+
+cloudrun_command_test(
+    name = "test_simple_deploy",
+    target = "//docs/examples:deploy_myapp",
+    expected_flags = [
+        "CMD+=\" deploy myapp\"",
+        "--region=us-central1",
+        "--allow-unauthenticated",
+    ],
+)
+
+cloudrun_command_test(
+    name = "test_prod_deploy",
+    target = "//docs/examples:deploy_myapp_prod",
+    expected_flags = [
+        "--service-account=myapp-prod@my-project.iam.gserviceaccount.com",
+        "--region=us-central1",
+    ],
+)
+
+# Test generated multi-region individual target
+cloudrun_command_test(
+    name = "test_multi_region_us",
+    target = "//docs/examples:test_multi_region_us_central1",
+    expected_flags = [
+        "CMD+=\" deploy test-multi-service\"",
+        "--region=us-central1",
+    ],
+)
+
+# Test aggregate target
+cloudrun_command_test(
+    name = "test_multi_region_aggregate",
+    target = "//docs/examples:test_multi_region_all",
+    expected_flags = [
+        "Deploying to multiple regions...",
+        "bazel run :test_multi_region_us_central1",
+        "bazel run :test_multi_region_europe_west1",
+    ],
+)
+
+cloudrun_command_test(
+    name = "test_job_single",
+    target = "//docs/examples:test_job_single",
+    expected_flags = [
+        "CMD+=\" jobs deploy test-job\"",
+        "--region=us-central1",
+    ],
+    unexpected_flags = [
+        "--platform=managed",
+    ],
+)
+
+# Test env_configs generation
+cloudrun_command_test(
+    name = "test_env_config_dev",
+    target = "//docs/examples:deploy_myapp_all_dev",
+    expected_flags = [
+        "CMD+=\" deploy myapp\"",
+        "--region=us-central1",
+        # config.dev.yaml likely has specific flags or env vars, 
+        # but just checking existence confirms the target was generated.
+    ],
+)

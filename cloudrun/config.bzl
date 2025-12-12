@@ -11,17 +11,7 @@ CloudRunConfigInfo = provider(
 )
 
 def cloudrun_service_config(name, config, service_name, region = "", source = "", additional_flags = [], base_config = None):
-    """
-    Macro to parse Cloud Run service configuration and generate deployment command.
-
-    Args:
-        name: Name of the target
-        config: Label pointing to the service configuration YAML file
-        service_name: Name of the Cloud Run service to deploy
-        region: GCP region for deployment (optional)
-        source: Source directory or image for deployment (optional)
-        additional_flags: Additional gcloud run deploy flags (optional)
-        base_config: Label pointing to base configuration YAML file for defaults (optional)
+    """Macro to parse Cloud Run service configuration and generate deployment command.
 
     The config YAML file can contain:
         - runConfig: Cloud Run service configuration (cpu, memory, instances, etc.)
@@ -39,6 +29,15 @@ def cloudrun_service_config(name, config, service_name, region = "", source = ""
             source = ".",
             additional_flags = ["--allow-unauthenticated"],
         )
+
+    Args:
+        name: Name of the target
+        config: Label pointing to the service configuration YAML file
+        service_name: Name of the Cloud Run service to deploy
+        region: GCP region for deployment (optional)
+        source: Source directory or image for deployment (optional)
+        additional_flags: Additional gcloud run deploy flags (optional)
+        base_config: Label pointing to base configuration YAML file for defaults (optional)
     """
 
     # Parse top-level configuration

@@ -34,3 +34,10 @@ sh_binary(
     srcs = ["execute.sh"],
     visibility = ["//cloudrun:__pkg__"],
 )
+
+# Command assembly script
+sh_binary(
+    name = "assemble_command_script",
+    srcs = ["assemble_command.sh"],
+    visibility = ["//cloudrun:__pkg__"],
+)

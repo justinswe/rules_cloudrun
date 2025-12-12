@@ -1,0 +1,16 @@
+load("@stardoc//stardoc:stardoc.bzl", "stardoc")
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+
+# Create bzl_library targets for our Starlark files
+bzl_library(
+    name = "cloudrun_config_bzl",
+    srcs = ["//cloudrun:config.bzl"],
+)
+
+# Document the configuration parsing functionality
+stardoc(
+    name = "cloudrun_config_docs", 
+    input = "//cloudrun:config.bzl",
+    out = "cloudrun_config.md",
+    deps = [":cloudrun_config_bzl"],
+)
