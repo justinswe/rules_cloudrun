@@ -18,7 +18,7 @@ parse_run_config() {
 
     # Parse runConfig section
     in_run_config=false
-    while IFS= read -r line; do
+    while IFS= read -r line || [ -n "$line" ]; do
         # Check if we're entering runConfig section
         if [[ "$line" =~ ^[[:space:]]*runConfig:[[:space:]]*$ ]]; then
             in_run_config=true
@@ -52,6 +52,12 @@ parse_run_config() {
                         ;;
                     memoryMiB)
                         echo "memory=${value}Mi"
+                        ;;
+                    vpcConnector)
+                        echo "vpc-connector=$value"
+                        ;;
+                    vpcEgress)
+                        echo "vpc-egress=$value"
                         ;;
                 esac
             fi

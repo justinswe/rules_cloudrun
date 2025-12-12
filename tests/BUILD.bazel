@@ -1,4 +1,21 @@
 load("//tests:utils.bzl", "cloudrun_command_test")
+load("//:defs.bzl", "cloudrun_deploy")
+
+cloudrun_deploy(
+    name = "deploy_with_vpc",
+    service_name = "vpc-service",
+    config = ":vpc_config.yaml",
+    region = "us-central1",
+)
+
+cloudrun_command_test(
+    name = "test_vpc_config",
+    target = ":deploy_with_vpc",
+    expected_flags = [
+        "--vpc-connector=lavndr-vpc-connector",
+        "--vpc-egress=all-traffic",
+    ],
+)
 
 cloudrun_command_test(
     name = "test_simple_deploy",
@@ -27,6 +44,7 @@ cloudrun_command_test(
     expected_flags = [
         "CMD+=\" deploy test-multi-service\"",
         "--regions=us-central1,europe-west1,asia-east1",
+        "--allow-unauthenticated",
     ],
     unexpected_flags = [
         "--region=", # Should not have single region flag
