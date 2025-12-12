@@ -1,4 +1,4 @@
-"""Cloud Run deployment rules and utilities."""
+"Cloud Run deployment rules and utilities."
 
 load("//cloudrun:config.bzl", _cloudrun_service_config = "cloudrun_service_config")
 load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
@@ -6,6 +6,7 @@ load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
 def _create_multi_region_aggregate_target(name, regional_targets):
     """
     Creates an aggregate target that can deploy to all regions at once.
+    Used for Cloud Run Jobs which do not support --regions flag.
     
     Args:
         name: Name of the aggregate target
@@ -56,7 +57,7 @@ def _cloudrun_deploy_impl(ctx):
     # Service Name
     args.append(ctx.attr.service_name)
     
-    # Region
+    # Region (Single)
     args.append(ctx.attr.region)
     
     # Source
@@ -96,6 +97,9 @@ def _cloudrun_deploy_impl(ctx):
     else:
         args.append("")
 
+    # Regions List (Multi-region)
+    args.append(",".join(ctx.attr.regions))
+
     # Additional Flags
     args.append(" ".join(ctx.attr.additional_flags))
 
@@ -127,7 +131,11 @@ _cloudrun_deploy = rule(
         ),
         "region": attr.string(
             default = "",
-            doc = "GCP region for deployment",
+            doc = "GCP region for deployment (single)",
+        ),
+        "regions": attr.string_list(
+            default = [],
+            doc = "List of GCP regions for deployment (multi-region)",
         ),
         "source": attr.string(
             default = "",
@@ -184,48 +192,6 @@ def cloudrun_deploy(name, service_name, region = "", source = "", service_accoun
         job: Whether to deploy as a Cloud Run job instead of service (optional, default False)
         multi_region: Enable multi-region deployment (optional, default False)
         regions: List of GCP regions for multi-region deployment (only used when multi_region=True)
-
-    Examples:
-        # Deploy a Cloud Run service to a single region
-        cloudrun_deploy(
-            name = "deploy_lavndrapi",
-            config = "//lavndrapi:svc_cfg.prd.yaml",
-            base_config = "//lavndrapi:svc_cfg.yaml",
-            service_name = "lavndrapi",
-            region = "us-central1",
-            service_account = "my-service@project.iam.gserviceaccount.com",
-        )
-
-        # Deploy a Cloud Run service to multiple regions
-        cloudrun_deploy(
-            name = "deploy_lavndrapi_multi",
-            config = "//lavndrapi:svc_cfg.prd.yaml",
-            base_config = "//lavndrapi:svc_cfg.yaml",
-            service_name = "lavndrapi",
-            multi_region = True,
-            regions = ["us-central1", "europe-west1", "asia-east1"],
-            service_account = "my-service@project.iam.gserviceaccount.com",
-        )
-
-        # Deploy a Cloud Run job
-        cloudrun_deploy(
-            name = "deploy_data_processor",
-            config = "//jobs:processor_cfg.yaml",
-            service_name = "data-processor",
-            region = "us-central1",
-            job = True,
-        )
-
-    Usage:
-        # Single region deployment
-        bazel run //:deploy_lavndrapi
-        
-        # Multi-region deployment (individual regions)
-        bazel run //:deploy_lavndrapi_multi_us_central1
-        bazel run //:deploy_lavndrapi_multi_europe_west1
-        
-        # Multi-region deployment (all regions at once)
-        bazel run //:deploy_lavndrapi_multi_all
     """
     # Validation logic
     if env_configs and config:
@@ -248,23 +214,22 @@ def cloudrun_deploy(name, service_name, region = "", source = "", service_accoun
 
     # Handle multi-region deployment
     if multi_region:
-        regional_targets = []
-        
-        if env_configs and len(env_configs) > 0:
-            # Multi-region with env_configs
-            for env, env_config in env_configs.items():
-                for target_region in regions:
-                    # Normalize region name for target naming (replace hyphens with underscores)
-                    normalized_region = target_region.replace("-", "_")
-                    cfg_name = "{}_{}_{}".format(name, env, normalized_region)
-                    regional_target_name = "{}_{}_{}".format(name, env, normalized_region)
+        # Case 1: Services (support --regions flag)
+        if not job:
+            if env_configs and len(env_configs) > 0:
+                 for env, env_config in env_configs.items():
+                    cfg_name = "{}_{}".format(name, env)
                     
+                    # We generate one config target for the environment
                     _cloudrun_service_config(
                         name = "{}_cfg".format(cfg_name),
                         config = env_config,
                         base_config = base_config if base_config else None,
                         service_name = service_name,
-                        region = target_region,
+                        # For config parsing, region might be relevant for cloudsql, 
+                        # but usually we pick the first one or leave it empty if region-agnostic.
+                        # Using first region as default for parsing context.
+                        region = regions[0], 
                         source = source,
                         additional_flags = additional_flags,
                     )
@@ -275,9 +240,9 @@ def cloudrun_deploy(name, service_name, region = "", source = "", service_accoun
                     secrets_name = "{}_cfg_secrets".format(cfg_name)
 
                     _cloudrun_deploy(
-                        name = regional_target_name,
+                        name = "{}_{}".format(name, env),
                         service_name = service_name,
-                        region = target_region,
+                        regions = regions, # Pass list of regions
                         source = source,
                         service_account = service_account,
                         job = job,
@@ -287,46 +252,132 @@ def cloudrun_deploy(name, service_name, region = "", source = "", service_accoun
                         secrets_flags = ":" + secrets_name,
                         additional_flags = additional_flags,
                     )
-                    regional_targets.append(":" + regional_target_name)
-        else:
-            # Multi-region with single config
-            for target_region in regions:
-                # Normalize region name for target naming (replace hyphens with underscores)
-                normalized_region = target_region.replace("-", "_")
-                cfg_name = "{}_{}".format(name, normalized_region)
-                regional_target_name = "{}_{}".format(name, normalized_region)
-                
+            else:
+                # Single config, multi-region
                 _cloudrun_service_config(
-                    name = "{}_cfg".format(cfg_name),
+                    name = name + "_cfg",
                     config = config,
                     base_config = base_config,
                     service_name = service_name,
-                    region = target_region,
+                    region = regions[0],
                     source = source,
                     additional_flags = additional_flags,
                 )
 
                 _cloudrun_deploy(
-                    name = regional_target_name,
+                    name = name,
                     service_name = service_name,
-                    region = target_region,
+                    regions = regions, # Pass list of regions
                     source = source,
                     service_account = service_account,
                     job = job,
-                    top_level_flags = ":" + cfg_name + "_cfg_top_level",
-                    run_config_flags = ":" + cfg_name + "_cfg_run_config",
-                    env_vars_flags = ":" + cfg_name + "_cfg_env_vars",
-                    secrets_flags = ":" + cfg_name + "_cfg_secrets",
+                    top_level_flags = ":" + name + "_cfg_top_level",
+                    run_config_flags = ":" + name + "_cfg_run_config",
+                    env_vars_flags = ":" + name + "_cfg_env_vars",
+                    secrets_flags = ":" + name + "_cfg_secrets",
                     additional_flags = additional_flags,
                 )
-                regional_targets.append(":" + regional_target_name)
+            return
 
-        # Create aggregate target that deploys to all regions
-        _create_multi_region_aggregate_target(
-            name = name + "_all",
-            regional_targets = regional_targets,
-        )
-        return
+        # Case 2: Jobs (MUST loop, does not support --regions)
+        else: 
+            regional_targets = []
+            
+            if env_configs and len(env_configs) > 0:
+                for env, env_config in env_configs.items():
+                    # For jobs with env_configs and multi_region, we likely want an aggregate for that env?
+                    # Or a super-aggregate?
+                    # Existing logic created {name}_{env}_{region}. 
+                    # Let's keep that but maybe also create {name}_{env} as aggregate.
+                    
+                    env_regional_targets = []
+                    
+                    for target_region in regions:
+                        normalized_region = target_region.replace("-", "_")
+                        cfg_name = "{}_{}_{}".format(name, env, normalized_region)
+                        regional_target_name = "{}_{}_{}".format(name, env, normalized_region)
+                        
+                        _cloudrun_service_config(
+                            name = "{}_cfg".format(cfg_name),
+                            config = env_config,
+                            base_config = base_config if base_config else None,
+                            service_name = service_name,
+                            region = target_region,
+                            source = source,
+                            additional_flags = additional_flags,
+                        )
+
+                        _cloudrun_deploy(
+                            name = regional_target_name,
+                            service_name = service_name,
+                            region = target_region,
+                            source = source,
+                            service_account = service_account,
+                            job = job,
+                            top_level_flags = ":" + cfg_name + "_cfg_top_level",
+                            run_config_flags = ":" + cfg_name + "_cfg_run_config",
+                            env_vars_flags = ":" + cfg_name + "_cfg_env_vars",
+                            secrets_flags = ":" + cfg_name + "_cfg_secrets",
+                            additional_flags = additional_flags,
+                        )
+                        env_regional_targets.append(":" + regional_target_name)
+                    
+                    # Create aggregate for this env
+                    _create_multi_region_aggregate_target(
+                        name = "{}_{}".format(name, env),
+                        regional_targets = env_regional_targets
+                    )
+
+            else:
+                # Multi-region with single config (Jobs)
+                for target_region in regions:
+                    normalized_region = target_region.replace("-", "_")
+                    cfg_name = "{}_{}".format(name, normalized_region)
+                    regional_target_name = "{}_{}".format(name, normalized_region)
+                    
+                    _cloudrun_service_config(
+                        name = "{}_cfg".format(cfg_name),
+                        config = config,
+                        base_config = base_config,
+                        service_name = service_name,
+                        region = target_region,
+                        source = source,
+                        additional_flags = additional_flags,
+                    )
+
+                    _cloudrun_deploy(
+                        name = regional_target_name,
+                        service_name = service_name,
+                        region = target_region,
+                        source = source,
+                        service_account = service_account,
+                        job = job,
+                        top_level_flags = ":" + cfg_name + "_cfg_top_level",
+                        run_config_flags = ":" + cfg_name + "_cfg_run_config",
+                        env_vars_flags = ":" + cfg_name + "_cfg_env_vars",
+                        secrets_flags = ":" + cfg_name + "_cfg_secrets",
+                        additional_flags = additional_flags,
+                    )
+                    regional_targets.append(":" + regional_target_name)
+
+                # Create aggregate target that deploys to all regions
+                _create_multi_region_aggregate_target(
+                    name = name + "_all", # Legacy naming from previous implementation, maybe just 'name'?
+                    # If we use 'name', it conflicts if we don't return early.
+                    # Let's use 'name' for the aggregate if possible.
+                    regional_targets = regional_targets,
+                )
+                # But wait, we usually want 'name' to be the runnable.
+                # In the job case, 'name' should be the aggregate.
+                
+                # Check if 'name' is already taken by a region? No, regions have suffixes.
+                # So we can use 'name' for the aggregate.
+                if native.existing_rule(name): 
+                     # Should not happen if we control generation.
+                     pass
+                else:
+                    _create_multi_region_aggregate_target(name = name, regional_targets = regional_targets)
+                return
 
     # Handle single-region deployment
     if env_configs and len(env_configs) > 0:

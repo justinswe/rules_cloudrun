@@ -4,7 +4,7 @@ set -euo pipefail
 # Inputs provided by Bazel action
 # $1: Output file path
 # $2: Service Name
-# $3: Region
+# $3: Region (Single)
 # $4: Source
 # $5: Service Account
 # $6: Is Job (True/False)
@@ -12,7 +12,8 @@ set -euo pipefail
 # $8: Run config flags file
 # $9: Env vars flags file
 # $10: Secrets flags file
-# $11: Additional flags (string)
+# $11: Regions (Comma separated list for multi-region)
+# $12: Additional flags (string)
 
 output_file="$1"
 service_name="$2"
@@ -24,7 +25,8 @@ top_level_file="$7"
 run_config_file="$8"
 env_vars_file="$9"
 secrets_file="${10}"
-additional_flags="${11:-}"
+regions_list="${11:-}"
+additional_flags="${12:-}"
 
 # Helper to read file content if it exists
 read_flags() {
@@ -66,8 +68,12 @@ if [[ "$is_job" != "True" ]]; then
      echo "CMD+=\" --platform=managed\"" >> "$output_file"
 fi
 
-# Append Region
-if [[ -n "$region" ]]; then
+# Append Region(s)
+if [[ -n "$regions_list" ]]; then
+    # Multi-region deployment (Services only)
+    echo "CMD+=\" --regions=$regions_list\"" >> "$output_file"
+elif [[ -n "$region" ]]; then
+    # Single region deployment
     echo "CMD+=\" --region=$region\"" >> "$output_file"
 fi
 

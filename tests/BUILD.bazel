@@ -19,25 +19,18 @@ cloudrun_command_test(
     ],
 )
 
-# Test generated multi-region individual target
+# Test generated multi-region individual target (NOW SINGLE TARGET)
+# This was previously checking individual regions, but now we check the single command.
 cloudrun_command_test(
-    name = "test_multi_region_us",
-    target = "//docs/examples:test_multi_region_us_central1",
+    name = "test_multi_region_service",
+    target = "//docs/examples:test_multi_region",
     expected_flags = [
         "CMD+=\" deploy test-multi-service\"",
-        "--region=us-central1",
+        "--regions=us-central1,europe-west1,asia-east1",
     ],
-)
-
-# Test aggregate target
-cloudrun_command_test(
-    name = "test_multi_region_aggregate",
-    target = "//docs/examples:test_multi_region_all",
-    expected_flags = [
-        "Deploying to multiple regions...",
-        "bazel run :test_multi_region_us_central1",
-        "bazel run :test_multi_region_europe_west1",
-    ],
+    unexpected_flags = [
+        "--region=", # Should not have single region flag
+    ]
 )
 
 cloudrun_command_test(
@@ -59,7 +52,15 @@ cloudrun_command_test(
     expected_flags = [
         "CMD+=\" deploy myapp\"",
         "--region=us-central1",
-        # config.dev.yaml likely has specific flags or env vars, 
-        # but just checking existence confirms the target was generated.
+    ],
+)
+
+# Test multi-region with env configs
+cloudrun_command_test(
+    name = "test_multi_region_envs_dev",
+    target = "//docs/examples:test_multi_region_envs_dev",
+    expected_flags = [
+        "CMD+=\" deploy test-env-multi-service\"",
+        "--regions=us-central1,europe-west1",
     ],
 )
