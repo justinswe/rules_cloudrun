@@ -5,3 +5,6 @@ bazel-bin
 bazel-out
 bazel-testlogs
 bazel-rules*
+
+.env
+.env.*
