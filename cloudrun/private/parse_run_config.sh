@@ -59,6 +59,12 @@ parse_run_config() {
                     vpcEgress)
                         echo "vpc-egress=$value"
                         ;;
+                    network)
+                        echo "network=$value"
+                        ;;
+                    subnet)
+                        echo "subnet=$value"
+                        ;;
                 esac
             fi
         fi

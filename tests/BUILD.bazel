@@ -17,6 +17,23 @@ cloudrun_command_test(
     ],
 )
 
+cloudrun_deploy(
+    name = "deploy_with_network",
+    service_name = "network-service",
+    config = ":network_config.yaml",
+    region = "us-central1",
+)
+
+cloudrun_command_test(
+    name = "test_network_config",
+    target = ":deploy_with_network",
+    expected_flags = [
+        "--network=default",
+        "--subnet=my-subnet",
+        "--vpc-egress=private-ranges-only",
+    ],
+)
+
 cloudrun_command_test(
     name = "test_simple_deploy",
     target = "//docs/examples:deploy_myapp",
