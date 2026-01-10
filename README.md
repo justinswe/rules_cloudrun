@@ -31,7 +31,7 @@ module(
 git_override(
     module_name = "rules_cloudrun",
     remote = "https://github.com/justinswe/rules_cloudrun.git",
-    commit = "308080c3ef4d09dc65c7e5cec47ef64d7d1af799",
+    commit = "RELEASE_SHA",
 )
 ```
 
