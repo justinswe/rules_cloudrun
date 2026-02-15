@@ -1,5 +1,9 @@
-# Export the public macros for use in other BUILD files
+# Export the public macros and rules for use in other BUILD files
 exports_files([
-    "config.bzl",
+    "common.bzl",
+    "render.bzl",
     "deploy.bzl",
+    "service.bzl",
+    "job.bzl",
+    "worker.bzl",
 ])

@@ -1,0 +1,27 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  annotations:
+    run.googleapis.com/ingress: all
+  name: myapp
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/maxScale: "3"
+        autoscaling.knative.dev/minScale: "0"
+        run.googleapis.com/execution-environment: gen2
+    spec:
+      containerConcurrency: 1000
+      containers:
+      - env:
+        - name: DATABASE_URL
+          value: postgresql://localhost:5432/myapp
+        - name: LOG_LEVEL
+          value: info
+        image: us-central1-docker.pkg.dev/lavndr-ai/lavndr-ai/myapp@sha256:46e099f6d3eab8fc3246ad867aace15a5503a4cf6c7c54f2ffac5c28ea1facad
+        resources:
+          limits:
+            cpu: "1"
+            memory: 512Mi
+      timeoutSeconds: 300

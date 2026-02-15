@@ -1,0 +1,9 @@
+load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
+
+package(default_visibility = ["//cloudrun:__subpackages__"])
+
+sh_binary(
+    name = "validate",
+    srcs = ["validate.sh"],
+    visibility = ["//visibility:public"],
+)

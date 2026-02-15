@@ -1,111 +1,178 @@
 """Testing utilities for cloudrun rules."""
 
-def cloudrun_command_test(name, target, expected_flags = [], unexpected_flags = []):
-    """
-    Verifies that the generated cloudrun deployment script contains expected flags.
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
+
+def cloudrun_manifest_test(name, render_target, expected):
+    """Tests that a rendered manifest matches a golden file.
 
     Args:
         name: Test target name.
-        target: The cloudrun_deploy target to test.
-        expected_flags: List of strings that must be present in the generated command.
-        unexpected_flags: List of strings that must NOT be present.
+        render_target: The .render target that produces the manifest YAML.
+        expected: Label pointing to the expected golden file.
     """
-    
-    # Generate the checks Starlark-side to avoid complex escaping for Bash arrays
-    checks = ""
-    for flag in expected_flags:
-        safe_flag = flag.replace("'", "'\\''")
-        checks += """
-    if ! echo \"$CONTENT\" | grep -Fq -e '{flag}'; then
-        echo "  Missing expected flag: '{flag}'"
-        CURRENT_FAILED=1
-    fi
-""".format(flag = safe_flag)
-
-    for flag in unexpected_flags:
-        safe_flag = flag.replace("'", "'\\''")
-        checks += """
-    if echo \"$CONTENT\" | grep -Fq -e '{flag}'; then
-        echo "  Found unexpected flag: '{flag}'"
-        CURRENT_FAILED=1
-    fi
-""".format(flag = safe_flag)
-
-    template = """
+    native.genrule(
+        name = name + "_gen_test",
+        outs = [name + "_test.sh"],
+        srcs = [render_target, expected],
+        cmd = """
+cat > $@ <<'TESTEOF'
 #!/bin/bash
 set -euo pipefail
+ACTUAL="$(rootpath {render})"
+EXPECTED="$(rootpath {expected})"
 
-# PATHS contains space-separated paths from $(rootpaths)
-PATHS="%PATHS%"
-
-FOUND_PASSING_FILE=0
-
-for SCRIPT_PATH in $PATHS; do
-    echo "Examining artifact: $SCRIPT_PATH"
-    
-    REAL_PATH="$SCRIPT_PATH"
-    if [ ! -f "$REAL_PATH" ]; then
-        if [ -f "$RUNFILES_DIR/$SCRIPT_PATH" ]; then
-            REAL_PATH="$RUNFILES_DIR/$SCRIPT_PATH"
-        elif [ -f "$TEST_SRCDIR/$TEST_WORKSPACE/$SCRIPT_PATH" ]; then
-            REAL_PATH="$TEST_SRCDIR/$TEST_WORKSPACE/$SCRIPT_PATH"
-        else
-            echo "  Skipping: File not found."
-            continue
-        fi
-    fi
-
-    CONTENT=$(cat "$REAL_PATH")
-    CURRENT_FAILED=0
-
-    {checks}
-
-    if [ $CURRENT_FAILED -eq 0 ]; then
-        echo "PASS: File '$SCRIPT_PATH' matches all criteria."
-        FOUND_PASSING_FILE=1
-        break
-    else
-        echo "--- Content of $SCRIPT_PATH ---"
-        echo "$CONTENT"
-        echo "-----------------------------"
-    fi
-done
-
-if [ $FOUND_PASSING_FILE -eq 0 ]; then
-    echo "FAIL: No output file matched all expectations."
+if ! diff -u "$$EXPECTED" "$$ACTUAL"; then
+    echo ""
+    echo "FAIL: Manifest does not match golden file."
+    echo "  Actual:   {render}"
+    echo "  Expected: {expected}"
     exit 1
 fi
 
-echo "Test passed."
-"""
-
-    content_with_checks = template.replace("{checks}", checks)
-    
-    # Escape $ for Bazel genrule cmd attribute
-    bazel_safe_content = content_with_checks.replace("$", "$$")
-    
-    delimiter = "EOF"
-
-    native.sh_test(
-        name = name,
-        srcs = [name + "_test_script.sh"],
-        data = [target],
-    )
-    
-    native.genrule(
-        name = name + "_gen_test",
-        outs = [name + "_test_script.sh"],
-        srcs = [target],
-        cmd = """
-cat > $@ <<'{delimiter}'
-{content}
-{delimiter}
-sed -i.bak 's|%PATHS%|$(rootpaths {target})|g' $@
-rm $@.bak
+echo "PASS: Manifest matches golden file."
+TESTEOF
 """.format(
-            delimiter = delimiter,
-            content = bazel_safe_content,
-            target = target
+            render = render_target,
+            expected = expected,
         ),
         executable = True,
+    )
+
+    sh_test(
+        name = name,
+        srcs = [":" + name + "_gen_test"],
+        data = [render_target, expected],
+    )
+
+def cloudrun_deploy_script_test(name, deploy_target, expected_substrings = [], unexpected_substrings = []):
+    """Tests a generated deploy script for required and forbidden text.
+
+    Args:
+        name: Test target name.
+        deploy_target: The .deploy target to inspect.
+        expected_substrings: Substrings that must be present in the script.
+        unexpected_substrings: Substrings that must be absent from the script.
+    """
+    checks = ""
+    for text in expected_substrings:
+        safe = text.replace("$", "$$").replace("'", "'\\''")
+        checks += """
+if ! grep -Fq -- '{text}' "$$SCRIPT_PATH"; then
+    echo "FAIL: missing expected text: {text}"
+    FAIL=1
+fi
+""".format(text = safe)
+
+    for text in unexpected_substrings:
+        safe = text.replace("$", "$$").replace("'", "'\\''")
+        checks += """
+if grep -Fq -- '{text}' "$$SCRIPT_PATH"; then
+    echo "FAIL: found forbidden text: {text}"
+    FAIL=1
+fi
+""".format(text = safe)
+
+    native.genrule(
+        name = name + "_gen_test",
+        outs = [name + "_test.sh"],
+        srcs = [deploy_target],
+        cmd = """
+cat > $@ <<'TESTEOF'
+#!/bin/bash
+set -euo pipefail
+SCRIPT_PATH="$(rootpath {deploy_target})"
+FAIL=0
+
+{checks}
+
+if [ "$$FAIL" -ne 0 ]; then
+    exit 1
+fi
+
+echo "PASS: deploy script checks succeeded."
+TESTEOF
+""".format(
+            deploy_target = deploy_target,
+            checks = checks,
+        ),
+        executable = True,
+    )
+
+    sh_test(
+        name = name,
+        srcs = [":" + name + "_gen_test"],
+        data = [deploy_target],
+    )
+
+def cloudrun_validation_test(name, config, resource_type = "service", expected_errors = []):
+    """Tests that validation fails with expected error messages.
+
+    Args:
+        name: Test target name.
+        config: Label of the invalid config to validate.
+        resource_type: Resource type to validate against.
+        expected_errors: List of substrings expected in stderr output.
+    """
+    error_checks = ""
+    for err in expected_errors:
+        safe = err.replace("'", "'\\''")
+        error_checks += """
+    if ! echo "$$STDERR" | grep -Fq '{err}'; then
+        echo "  Missing expected error: '{err}'"
+        echo "  Actual stderr:"
+        echo "$$STDERR"
+        FAIL=1
+    fi
+""".format(err = safe)
+
+    native.genrule(
+        name = name + "_gen_test",
+        outs = [name + "_test.sh"],
+        srcs = [config],
+        tools = [
+            "//cloudrun/private/validation:validate",
+            "@yq//:yq",
+        ],
+        cmd = """
+cat > $@ <<'TESTEOF'
+#!/bin/bash
+set -euo pipefail
+YQ="$(rootpath @yq//:yq)"
+VALIDATE="$(rootpath //cloudrun/private/validation:validate)"
+CONFIG="$(rootpath {config})"
+FAIL=0
+
+# Validation should fail (exit non-zero)
+if STDERR=$$($$VALIDATE --yq $$YQ --config $$CONFIG --resource-type {resource_type} 2>&1); then
+    echo "FAIL: Validation should have failed but succeeded."
+    exit 1
+fi
+
+echo "Validation correctly failed. Checking error messages..."
+
+{error_checks}
+
+if [ $$FAIL -ne 0 ]; then
+    echo "FAIL: Not all expected errors were present."
+    exit 1
+fi
+
+echo "PASS: Validation failed with all expected errors."
+TESTEOF
+""".format(
+            config = config,
+            resource_type = resource_type,
+            error_checks = error_checks,
+        ),
+        executable = True,
+    )
+
+    sh_test(
+        name = name,
+        srcs = [":" + name + "_gen_test"],
+        data = [
+            config,
+            "//cloudrun/private/validation:validate",
+            "@yq//:yq",
+        ],
     )

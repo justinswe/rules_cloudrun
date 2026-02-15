@@ -1,4 +1,5 @@
 load("@aspect_rules_lint//format:defs.bzl", "format_multirun")
+load("@gazelle//:def.bzl", "gazelle")
 
 # Export public files for use in other packages
 exports_files([
@@ -8,5 +9,10 @@ exports_files([
 # Define format target that can be run with `bazel run //:format`
 format_multirun(
     name = "format",
+    visibility = ["//visibility:public"],
+)
+
+gazelle(
+    name = "gazelle",
     visibility = ["//visibility:public"],
 )

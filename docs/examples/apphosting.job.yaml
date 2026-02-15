@@ -1,0 +1,7 @@
+runConfig:
+  cpu: 1
+  memoryMiB: 512
+  taskCount: 1
+  parallelism: 1
+  maxRetries: 3
+  timeoutSeconds: 600

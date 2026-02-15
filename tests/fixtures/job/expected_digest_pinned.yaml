@@ -1,0 +1,19 @@
+apiVersion: run.googleapis.com/v1
+kind: Job
+metadata:
+  name: myjob
+spec:
+  template:
+    spec:
+      parallelism: 1
+      taskCount: 1
+      template:
+        spec:
+          containers:
+          - image: us-central1-docker.pkg.dev/lavndr-ai/lavndr-ai/myjob@sha256:46e099f6d3eab8fc3246ad867aace15a5503a4cf6c7c54f2ffac5c28ea1facad
+            resources:
+              limits:
+                cpu: 1000m
+                memory: 512Mi
+          maxRetries: 3
+          timeoutSeconds: 600

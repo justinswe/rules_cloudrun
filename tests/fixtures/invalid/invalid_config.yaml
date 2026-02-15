@@ -1,0 +1,11 @@
+# Invalid: has unknown top-level key and both value+secret on env entry
+runConfig:
+  cpu: 1
+  memoryMiB: 512
+
+unknownKey: "this should fail"
+
+env:
+  - variable: MY_VAR
+    value: "hello"
+    secret: projects/123456789/secrets/MY_VAR

@@ -1,16 +1,37 @@
-load("@stardoc//stardoc:stardoc.bzl", "stardoc")
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@stardoc//stardoc:stardoc.bzl", "stardoc")
 
 # Create bzl_library targets for our Starlark files
 bzl_library(
-    name = "cloudrun_config_bzl",
-    srcs = ["//cloudrun:config.bzl"],
+    name = "cloudrun_common_bzl",
+    srcs = ["//cloudrun:common.bzl"],
 )
 
-# Document the configuration parsing functionality
+bzl_library(
+    name = "cloudrun_render_bzl",
+    srcs = ["//cloudrun:render.bzl"],
+    deps = [":cloudrun_common_bzl"],
+)
+
+bzl_library(
+    name = "cloudrun_deploy_bzl",
+    srcs = ["//cloudrun:deploy.bzl"],
+)
+
+bzl_library(
+    name = "cloudrun_service_bzl",
+    srcs = ["//cloudrun:service.bzl"],
+    deps = [
+        ":cloudrun_common_bzl",
+        ":cloudrun_deploy_bzl",
+        ":cloudrun_render_bzl",
+    ],
+)
+
+# Document the service rule
 stardoc(
-    name = "cloudrun_config_docs", 
-    input = "//cloudrun:config.bzl",
-    out = "cloudrun_config.md",
-    deps = [":cloudrun_config_bzl"],
+    name = "cloudrun_service_docs",
+    out = "cloudrun_service.md",
+    input = "//cloudrun:service.bzl",
+    deps = [":cloudrun_service_bzl"],
 )

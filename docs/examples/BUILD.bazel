@@ -1,114 +1,69 @@
-load("@rules_cloudrun//:defs.bzl", "cloudrun_deploy")
+load("@rules_cloudrun//:defs.bzl", "cloudrun_job", "cloudrun_service", "cloudrun_worker")
+load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
 
 package(default_visibility = ["//visibility:public"])
 
-# Export test configuration files
-exports_files([
-    "test_multiregion.yaml",
-])
-
-# Example 1: Simple deployment with a single config file
-cloudrun_deploy(
-    name = "deploy_myapp",
-    service_name = "myapp",
-    config = ":config.yaml",
-    region = "us-central1",
-    source = ".",
-    additional_flags = ["--allow-unauthenticated"],
+sh_binary(
+    name = "image.push",
+    srcs = ["image_push.sh"],
 )
 
-# Example 2: Deployment with base config and environment-specific config
-cloudrun_deploy(
-    name = "deploy_myapp_prod",
-    service_name = "myapp",
-    config = ":config.prod.yaml",
-    base_config = ":config.yaml",
-    region = "us-central1",
-    source = ".",
-    service_account = "myapp-prod@my-project.iam.gserviceaccount.com",
+filegroup(
+    name = "image.digest",
+    srcs = ["image.digest.txt"],
 )
 
-# Example 3: Multi-environment deployment using env_configs
-cloudrun_deploy(
-    name = "deploy_myapp_all",
-    service_name = "myapp",
-    base_config = ":config.yaml",
-    env_configs = {
-        "dev": ":config.dev.yaml",
-        "staging": ":config.staging.yaml", 
-        "prod": ":config.prod.yaml",
-    },
+# Example: Single-env service (Knative manifest generation)
+cloudrun_service(
+    name = "example_service",
+    config = ":apphosting.yaml",
+    image = "gcr.io/my-project/myapp:latest",
     region = "us-central1",
-    source = ".",
+    service_name = "myapp",
 )
 
-# Example 4: Deployment from container image
-cloudrun_deploy(
-    name = "deploy_myapp_image",
-    service_name = "myapp",
-    config = ":config.yaml",
-    region = "us-central1",
-    additional_flags = [
-        "--image=gcr.io/my-project/myapp:latest",
-        "--allow-unauthenticated",
+# Example: Multi-env service with auto-discovered environments
+cloudrun_service(
+    name = "example_multi_env",
+    base_config = ":apphosting.yaml",
+    config_format = "apphosting.*.yaml",
+    configs = [
+        ":apphosting.dev.yaml",
+        ":apphosting.prd.yaml",
     ],
-)
-
-# Test Examples for Multi-Region Feature
-
-# Test 5: Single-region deployment (existing behavior validation)
-cloudrun_deploy(
-    name = "test_single_region",
-    config = ":test_multiregion.yaml",
-    service_name = "test-single-service",
+    image = "gcr.io/my-project/myapp:latest",
+    project_id = "my-project-{}-00",
     region = "us-central1",
-    source = ".",
-    additional_flags = ["--allow-unauthenticated"],
+    service_name = "myapp",
 )
 
-# Test 6: Multi-region deployment
-cloudrun_deploy(
-    name = "test_multi_region",
-    config = ":test_multiregion.yaml",
-    service_name = "test-multi-service",
-    multi_region = True,
-    regions = ["us-central1", "europe-west1", "asia-east1"],
-    source = ".",
-    additional_flags = ["--allow-unauthenticated"],
-)
-
-# Test 7: Multi-region deployment with env_configs
-cloudrun_deploy(
-    name = "test_multi_region_envs",
-    base_config = ":config.yaml",
-    env_configs = {
-        "dev": ":config.dev.yaml",
-        "prod": ":config.prod.yaml",
-    },
-    service_name = "test-env-multi-service",
-    multi_region = True,
-    regions = ["us-central1", "europe-west1"],
-    source = ".",
-    additional_flags = ["--allow-unauthenticated"],
-)
-
-# Test 8: Cloud Run job (single region)
-cloudrun_deploy(
-    name = "test_job_single",
-    config = ":test_multiregion.yaml",
-    service_name = "test-job",
+cloudrun_service(
+    name = "example_digest_pinned_service",
+    config = ":apphosting.yaml",
+    image_repo = "us-central1-docker.pkg.dev/lavndr-ai/lavndr-ai/myapp",
     region = "us-central1",
-    job = True,
-    source = ".",
+    service_name = "myapp",
 )
 
-# Test 9: Cloud Run job (multi-region)
-cloudrun_deploy(
-    name = "test_job_multi",
-    config = ":test_multiregion.yaml",
-    service_name = "test-job-multi",
-    multi_region = True,
-    regions = ["us-central1", "europe-west1"],
-    job = True,
-    source = ".",
+cloudrun_service(
+    name = "example_runtime_override_service",
+    config = ":apphosting.yaml",
+    region = "us-central1",
+    service_name = "myapp",
+)
+
+cloudrun_job(
+    name = "example_digest_pinned_job",
+    config = ":apphosting.job.yaml",
+    image_repo = "us-central1-docker.pkg.dev/lavndr-ai/lavndr-ai/myjob",
+    job_name = "myjob",
+    region = "us-central1",
+)
+
+cloudrun_worker(
+    name = "example_digest_pinned_worker",
+    config = ":apphosting.worker.yaml",
+    image_repo = "us-central1-docker.pkg.dev/lavndr-ai/lavndr-ai/myworker",
+    region = "us-central1",
+    worker_name = "myworker",
 )

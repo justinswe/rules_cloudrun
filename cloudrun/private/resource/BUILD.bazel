@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+package(default_visibility = ["//cloudrun:__subpackages__"])
+
+go_library(
+    name = "resource_lib",
+    srcs = ["renderer.go"],
+    importpath = "github.com/justinswe/rules_cloudrun/cloudrun/private/resource",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@dev_knative_serving//pkg/apis/serving/v1:serving",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/resource",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_sigs_yaml//:yaml",
+    ],
+)
+
+go_test(
+    name = "resource_lib_test",
+    srcs = ["renderer_test.go"],
+    embed = [":resource_lib"],
+    deps = [
+        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_stretchr_testify//suite:go_default_library",
+    ],
+)

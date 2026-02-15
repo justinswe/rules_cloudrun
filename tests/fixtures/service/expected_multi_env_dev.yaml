@@ -1,0 +1,41 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  annotations:
+    run.googleapis.com/ingress: all
+  name: myapp
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/maxScale: "2"
+        autoscaling.knative.dev/minScale: "0"
+        run.googleapis.com/cloudsql-instances: my-project-dev:us-central1:myapp-db-dev
+        run.googleapis.com/execution-environment: gen2
+    spec:
+      containerConcurrency: 1000
+      containers:
+      - env:
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: API_KEY
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: JWT_SECRET
+        - name: DATABASE_HOST
+          value: my-project-dev:us-central1:myapp-db-dev
+        - name: ENVIRONMENT
+          value: development
+        - name: DEBUG
+          value: "true"
+        image: gcr.io/my-project/myapp:latest
+        resources:
+          limits:
+            cpu: "1"
+            memory: 512Mi
+      serviceAccountName: myapp-dev@my-project-dev.iam.gserviceaccount.com
+      timeoutSeconds: 300

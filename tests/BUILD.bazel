@@ -1,101 +1,145 @@
-load("//tests:utils.bzl", "cloudrun_command_test")
-load("//:defs.bzl", "cloudrun_deploy")
+load("//tests:utils.bzl", "cloudrun_deploy_script_test", "cloudrun_manifest_test", "cloudrun_validation_test")
 
-cloudrun_deploy(
-    name = "deploy_with_vpc",
-    service_name = "vpc-service",
-    config = ":vpc_config.yaml",
-    region = "us-central1",
+# ─── Golden file tests for cloudrun_service rule ─────────────────────────────
+
+cloudrun_manifest_test(
+    name = "test_service_single_env_manifest",
+    expected = "//tests/fixtures/service:expected_single_env.yaml",
+    render_target = "//docs/examples:example_service.render",
 )
 
-cloudrun_command_test(
-    name = "test_vpc_config",
-    target = ":deploy_with_vpc",
-    expected_flags = [
-        "--vpc-connector=lavndr-vpc-connector",
-        "--vpc-egress=all-traffic",
+cloudrun_manifest_test(
+    name = "test_service_multi_env_dev_manifest",
+    expected = "//tests/fixtures/service:expected_multi_env_dev.yaml",
+    render_target = "//docs/examples:example_multi_env_dev.render",
+)
+
+cloudrun_manifest_test(
+    name = "test_service_multi_env_prd_manifest",
+    expected = "//tests/fixtures/service:expected_multi_env_prd.yaml",
+    render_target = "//docs/examples:example_multi_env_prd.render",
+)
+
+cloudrun_manifest_test(
+    name = "test_service_digest_pinned_manifest",
+    expected = "//tests/fixtures/service:expected_digest_pinned.yaml",
+    render_target = "//docs/examples:example_digest_pinned_service.render",
+)
+
+cloudrun_manifest_test(
+    name = "test_service_runtime_override_placeholder_manifest",
+    expected = "//tests/fixtures/service:expected_runtime_override_placeholder.yaml",
+    render_target = "//docs/examples:example_runtime_override_service.render",
+)
+
+cloudrun_manifest_test(
+    name = "test_job_digest_pinned_manifest",
+    expected = "//tests/fixtures/job:expected_digest_pinned.yaml",
+    render_target = "//docs/examples:example_digest_pinned_job.render",
+)
+
+cloudrun_manifest_test(
+    name = "test_worker_digest_pinned_manifest",
+    expected = "//tests/fixtures/worker:expected_digest_pinned.yaml",
+    render_target = "//docs/examples:example_digest_pinned_worker.render",
+)
+
+# ─── Deploy script tests ─────────────────────────────────────────────────────
+# Verify the assembled deploy scripts contain the correct build-time constants,
+# embedded manifest content, and gcloud command — with no runtime rlocation.
+
+cloudrun_deploy_script_test(
+    name = "test_service_deploy_script",
+    deploy_target = "//docs/examples:example_service.deploy",
+    expected_substrings = [
+        'GCLOUD_TRACK=""',
+        'GCLOUD_SUBCMD="services"',
+        'RESOURCE_TYPE="service"',
+        'SERVICE_NAME="myapp"',
+        'REGION_FLAG="--region=us-central1"',
+        'replace "$MANIFEST"',
+        "exec gcloud",
+        "CLOUDRUN_MANIFEST_EOF",
+        "serving.knative.dev/v1",
+    ],
+    unexpected_substrings = [
+        "rlocation",
+        "runfiles.bash",
+        "RUNFILES_DIR",
+        "cloudrun_deployer",
+        "bazel run",
     ],
 )
 
-cloudrun_deploy(
-    name = "deploy_with_network",
-    service_name = "network-service",
-    config = ":network_config.yaml",
-    region = "us-central1",
-)
-
-cloudrun_command_test(
-    name = "test_network_config",
-    target = ":deploy_with_network",
-    expected_flags = [
-        "--network=default",
-        "--subnet=my-subnet",
-        "--vpc-egress=private-ranges-only",
+cloudrun_deploy_script_test(
+    name = "test_digest_pinned_deploy_script",
+    deploy_target = "//docs/examples:example_digest_pinned_service.deploy",
+    expected_substrings = [
+        "PUSH_RUNFILE=",
+        'GCLOUD_SUBCMD="services"',
+        "exec gcloud",
+        "us-central1-docker.pkg.dev/lavndr-ai/lavndr-ai/myapp@sha256:",
+    ],
+    unexpected_substrings = [
+        "rlocation",
+        "runfiles.bash",
+        "cloudrun_deployer",
     ],
 )
 
-cloudrun_command_test(
-    name = "test_simple_deploy",
-    target = "//docs/examples:deploy_myapp",
-    expected_flags = [
-        "CMD+=\" deploy myapp\"",
-        "--region=us-central1",
-        "--allow-unauthenticated",
+cloudrun_deploy_script_test(
+    name = "test_runtime_override_deploy_script",
+    deploy_target = "//docs/examples:example_runtime_override_service.deploy",
+    expected_substrings = [
+        'PUSH_RUNFILE=""',
+        "rules-cloudrun.invalid/override-required:latest",
+        "exec gcloud",
+    ],
+    unexpected_substrings = [
+        "rlocation",
+        "cloudrun_deployer",
     ],
 )
 
-cloudrun_command_test(
-    name = "test_prod_deploy",
-    target = "//docs/examples:deploy_myapp_prod",
-    expected_flags = [
-        "--service-account=myapp-prod@my-project.iam.gserviceaccount.com",
-        "--region=us-central1",
+cloudrun_deploy_script_test(
+    name = "test_job_deploy_script",
+    deploy_target = "//docs/examples:example_digest_pinned_job.deploy",
+    expected_substrings = [
+        'GCLOUD_TRACK=""',
+        'GCLOUD_SUBCMD="jobs"',
+        'RESOURCE_TYPE="job"',
+        "run.googleapis.com/v1",
+        "exec gcloud",
+    ],
+    unexpected_substrings = [
+        "rlocation",
+        "cloudrun_deployer",
     ],
 )
 
-# Test generated multi-region individual target (NOW SINGLE TARGET)
-# This was previously checking individual regions, but now we check the single command.
-cloudrun_command_test(
-    name = "test_multi_region_service",
-    target = "//docs/examples:test_multi_region",
-    expected_flags = [
-        "CMD+=\" deploy test-multi-service\"",
-        "--regions=us-central1,europe-west1,asia-east1",
-        "--allow-unauthenticated",
+cloudrun_deploy_script_test(
+    name = "test_worker_deploy_script",
+    deploy_target = "//docs/examples:example_digest_pinned_worker.deploy",
+    expected_substrings = [
+        'GCLOUD_TRACK="beta"',
+        'GCLOUD_SUBCMD="worker-pools"',
+        'RESOURCE_TYPE="worker"',
+        'deploy "$SERVICE_NAME" --image=',
+        "exec gcloud",
     ],
-    unexpected_flags = [
-        "--region=", # Should not have single region flag
-    ]
-)
-
-cloudrun_command_test(
-    name = "test_job_single",
-    target = "//docs/examples:test_job_single",
-    expected_flags = [
-        "CMD+=\" jobs deploy test-job\"",
-        "--region=us-central1",
-    ],
-    unexpected_flags = [
-        "--platform=managed",
+    unexpected_substrings = [
+        "rlocation",
+        "cloudrun_deployer",
     ],
 )
 
-# Test env_configs generation
-cloudrun_command_test(
-    name = "test_env_config_dev",
-    target = "//docs/examples:deploy_myapp_all_dev",
-    expected_flags = [
-        "CMD+=\" deploy myapp\"",
-        "--region=us-central1",
-    ],
-)
+# ─── Validation failure tests ────────────────────────────────────────────────
 
-# Test multi-region with env configs
-cloudrun_command_test(
-    name = "test_multi_region_envs_dev",
-    target = "//docs/examples:test_multi_region_envs_dev",
-    expected_flags = [
-        "CMD+=\" deploy test-env-multi-service\"",
-        "--regions=us-central1,europe-west1",
+cloudrun_validation_test(
+    name = "test_validation_invalid_config",
+    config = "//tests/fixtures/invalid:invalid_config.yaml",
+    expected_errors = [
+        "Unknown top-level key 'unknownKey'",
+        "has both 'value' and 'secret'",
     ],
 )

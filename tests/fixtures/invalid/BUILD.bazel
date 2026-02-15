@@ -1,0 +1,4 @@
+exports_files(
+    glob(["**/*.yaml"]),
+    visibility = ["//visibility:public"],
+)
