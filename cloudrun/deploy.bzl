@@ -139,6 +139,7 @@ else
   [[ -n "$PROJECT_FLAG" ]] && GCLOUD_ARGS+=("$PROJECT_FLAG")
 fi
 
+GCLOUD_ARGS+=(--quiet)
 if [[ "${#EXTRA_ARGS[@]}" -gt 0 ]]; then
   GCLOUD_ARGS+=("${EXTRA_ARGS[@]}")
 fi
