@@ -93,51 +93,35 @@ elif [[ -n "$PUSH_RUNFILE" && -n "$IMAGE_OVERRIDE" ]]; then
 fi
 
 # ── Deploy ───────────────────────────────────────────────────────────────────
-
-# Worker pools use `gcloud beta run worker-pools deploy NAME --image=IMAGE`
-# because the `replace` subcommand does not accept --region.  Services and
-# jobs continue to use `gcloud run <subcmd> replace MANIFEST`.
-if [[ "$RESOURCE_TYPE" == "worker" ]]; then
-  DEPLOY_IMAGE=$(grep 'image:' "$MANIFEST" | head -1 | sed 's/.*image:[[:space:]]*//')
-  if [[ -z "$DEPLOY_IMAGE" ]]; then
-    echo "ERROR: could not extract image from manifest" >&2
-    exit 1
-  fi
-
-  echo "Deploying Cloud Run $RESOURCE_TYPE: $SERVICE_NAME"
-  if [[ -n "$PROJECT_FLAG" ]]; then
-    echo "  Project: ${PROJECT_FLAG#--project=}"
-  fi
-  if [[ -n "$REGION_FLAG" ]]; then
-    echo "  Region:  ${REGION_FLAG#--region*=}"
-  fi
-  echo "  Image:   $DEPLOY_IMAGE"
-  echo ""
-
-  GCLOUD_ARGS=()
-  [[ -n "$GCLOUD_TRACK" ]] && GCLOUD_ARGS+=("$GCLOUD_TRACK")
-  GCLOUD_ARGS+=(run "$GCLOUD_SUBCMD" deploy "$SERVICE_NAME" --image="$DEPLOY_IMAGE")
-  [[ -n "$REGION_FLAG" ]] && GCLOUD_ARGS+=("$REGION_FLAG")
-  [[ -n "$PROJECT_FLAG" ]] && GCLOUD_ARGS+=("$PROJECT_FLAG")
-else
-  echo "Deploying Cloud Run $RESOURCE_TYPE: $SERVICE_NAME"
-  if [[ -n "$PROJECT_FLAG" ]]; then
-    echo "  Project: ${PROJECT_FLAG#--project=}"
-  fi
-  if [[ -n "$REGION_FLAG" ]]; then
-    echo "  Region:  ${REGION_FLAG#--region*=}"
-  fi
-  if [[ -n "$IMAGE_OVERRIDE" ]]; then
-    echo "  Image:   $IMAGE_OVERRIDE (runtime override)"
-  fi
-  echo ""
-
-  GCLOUD_ARGS=()
-  [[ -n "$GCLOUD_TRACK" ]] && GCLOUD_ARGS+=("$GCLOUD_TRACK")
-  GCLOUD_ARGS+=(run "$GCLOUD_SUBCMD" replace "$MANIFEST")
-  [[ -n "$REGION_FLAG" ]] && GCLOUD_ARGS+=("$REGION_FLAG")
-  [[ -n "$PROJECT_FLAG" ]] && GCLOUD_ARGS+=("$PROJECT_FLAG")
+echo "Deploying Cloud Run $RESOURCE_TYPE: $SERVICE_NAME"
+if [[ -n "$PROJECT_FLAG" ]]; then
+  echo "  Project: ${PROJECT_FLAG#--project=}"
 fi
+if [[ -n "$REGION_FLAG" ]]; then
+  echo "  Region:  ${REGION_FLAG#--region*=}"
+fi
+if [[ -n "$IMAGE_OVERRIDE" ]]; then
+  echo "  Image:   $IMAGE_OVERRIDE (runtime override)"
+fi
+echo ""
+
+# Ensure required gcloud track components are installed.
+if [[ -n "$GCLOUD_TRACK" ]]; then
+  gcloud components install "$GCLOUD_TRACK" --quiet 2>/dev/null || true
+fi
+
+GCLOUD_ARGS=()
+[[ -n "$GCLOUD_TRACK" ]] && GCLOUD_ARGS+=("$GCLOUD_TRACK")
+GCLOUD_ARGS+=(run "$GCLOUD_SUBCMD" replace "$MANIFEST")
+
+# Worker pools: 'replace' does not accept --region; pass via env var instead.
+if [[ "$RESOURCE_TYPE" == "worker" && -n "$REGION_FLAG" ]]; then
+  export CLOUDSDK_RUN_REGION="${REGION_FLAG#--region=}"
+else
+  [[ -n "$REGION_FLAG" ]] && GCLOUD_ARGS+=("$REGION_FLAG")
+fi
+
+[[ -n "$PROJECT_FLAG" ]] && GCLOUD_ARGS+=("$PROJECT_FLAG")
 
 GCLOUD_ARGS+=(--quiet)
 if [[ "${#EXTRA_ARGS[@]}" -gt 0 ]]; then

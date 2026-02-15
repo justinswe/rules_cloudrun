@@ -124,7 +124,9 @@ cloudrun_deploy_script_test(
         'GCLOUD_TRACK="beta"',
         'GCLOUD_SUBCMD="worker-pools"',
         'RESOURCE_TYPE="worker"',
-        'deploy "$SERVICE_NAME" --image=',
+        "CLOUDSDK_RUN_REGION",
+        'replace "$MANIFEST"',
+        "gcloud components install",
         "exec gcloud",
     ],
     unexpected_substrings = [

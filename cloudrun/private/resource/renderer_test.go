@@ -146,7 +146,7 @@ env:
 			ServiceName:    "myapp",
 			Region:         "us-central1",
 			Image:          "example.com/myapp@sha256:def",
-			ResourceType:   "worker",
+			ResourceType:   "service",
 			TimeoutSeconds: 900,
 			OutputPath:     "manifest.yaml",
 		}
@@ -316,6 +316,145 @@ runConfig:
 		require.Nil(s.T(), taskSpec["maxRetries"])
 		require.Nil(s.T(), taskSpec["timeoutSeconds"])
 		require.Empty(s.T(), taskSpec["serviceAccountName"])
+	})
+}
+
+func (s *rendererSuite) TestRenderWorkerManifest() {
+	s.Run("renders worker pool manifest with all fields", func() {
+		fileIO := &fakeFileIO{
+			readFiles: map[string][]byte{
+				"config.yaml": []byte(`
+runConfig:
+  cpu: 2
+  memoryMiB: 1024
+  minInstances: 1
+  maxInstances: 5
+  network: default
+  subnet: app-subnet
+  vpcConnector: connector-a
+  vpcEgress: all-traffic
+serviceAccount: worker@project.iam.gserviceaccount.com
+cloudsqlConnector: project:region:instance
+env:
+  - variable: GIN_MODE
+    value: release
+  - variable: DISCORD_BOT_TOKEN
+    secret: projects/123456789/secrets/DISCORD_BOT_TOKEN
+`),
+			},
+			writeFiles: map[string][]byte{},
+		}
+
+		renderer := NewRenderer(fileIO)
+		options := RenderOptions{
+			ConfigPath:     "config.yaml",
+			ServiceName:    "myworker",
+			Region:         "us-central1",
+			Image:          "example.com/myworker@sha256:abc123",
+			ResourceType:   "worker",
+			TimeoutSeconds: 600,
+			OutputPath:     "manifest.yaml",
+		}
+		err := renderer.RenderManifest(options)
+		require.NoError(s.T(), err)
+
+		manifestData := fileIO.writeFiles["manifest.yaml"]
+		var raw map[string]interface{}
+		require.NoError(s.T(), yaml.Unmarshal(manifestData, &raw))
+
+		require.Equal(s.T(), "run.googleapis.com/v1", raw["apiVersion"])
+		require.Equal(s.T(), "WorkerPool", raw["kind"])
+		require.Nil(s.T(), raw["status"])
+
+		metadata := raw["metadata"].(map[string]interface{})
+		require.Equal(s.T(), "myworker", metadata["name"])
+
+		spec := raw["spec"].(map[string]interface{})
+		require.Nil(s.T(), spec["scaling"], "scaling must not be in worker pool YAML; use gcloud flags instead")
+
+		template := spec["template"].(map[string]interface{})
+		tmplMeta := template["metadata"].(map[string]interface{})
+		annotations := tmplMeta["annotations"].(map[string]interface{})
+		require.Equal(s.T(), "gen2", annotations["run.googleapis.com/execution-environment"])
+		require.Nil(s.T(), annotations["autoscaling.knative.dev/minScale"], "knative autoscaling annotations must not be present")
+		require.Nil(s.T(), annotations["autoscaling.knative.dev/maxScale"], "knative autoscaling annotations must not be present")
+		require.Equal(s.T(), "project:region:instance", annotations["run.googleapis.com/cloudsql-instances"])
+		require.Equal(s.T(), `[{"network":"default","subnetwork":"app-subnet"}]`, annotations["run.googleapis.com/network-interfaces"])
+		require.Equal(s.T(), "connector-a", annotations["run.googleapis.com/vpc-access-connector"])
+		require.Equal(s.T(), "all-traffic", annotations["run.googleapis.com/vpc-access-egress"])
+
+		tmplSpec := template["spec"].(map[string]interface{})
+		require.Equal(s.T(), "worker@project.iam.gserviceaccount.com", tmplSpec["serviceAccountName"])
+		require.EqualValues(s.T(), 600, tmplSpec["timeoutSeconds"])
+
+		containers := tmplSpec["containers"].([]interface{})
+		require.Len(s.T(), containers, 1)
+		container := containers[0].(map[string]interface{})
+		require.Equal(s.T(), "example.com/myworker@sha256:abc123", container["image"])
+
+		resources := container["resources"].(map[string]interface{})
+		limits := resources["limits"].(map[string]interface{})
+		require.Equal(s.T(), "2000m", limits["cpu"])
+		require.Equal(s.T(), "1024Mi", limits["memory"])
+
+		envList := container["env"].([]interface{})
+		require.Len(s.T(), envList, 2)
+		require.Equal(s.T(), "GIN_MODE", envList[0].(map[string]interface{})["name"])
+		require.Equal(s.T(), "release", envList[0].(map[string]interface{})["value"])
+
+		env1 := envList[1].(map[string]interface{})
+		require.Equal(s.T(), "DISCORD_BOT_TOKEN", env1["name"])
+		secretRef := env1["valueFrom"].(map[string]interface{})["secretKeyRef"].(map[string]interface{})
+		require.Equal(s.T(), "DISCORD_BOT_TOKEN", secretRef["name"])
+		require.Equal(s.T(), "latest", secretRef["key"])
+	})
+
+	s.Run("renders worker pool manifest with defaults", func() {
+		fileIO := &fakeFileIO{
+			readFiles: map[string][]byte{
+				"config.yaml": []byte(`
+runConfig:
+  cpu: 1
+  memoryMiB: 512
+`),
+			},
+			writeFiles: map[string][]byte{},
+		}
+
+		renderer := NewRenderer(fileIO)
+		options := RenderOptions{
+			ConfigPath:   "config.yaml",
+			ServiceName:  "simple-worker",
+			Region:       "us-central1",
+			Image:        "example.com/worker@sha256:def",
+			ResourceType: "worker",
+			OutputPath:   "manifest.yaml",
+		}
+		err := renderer.RenderManifest(options)
+		require.NoError(s.T(), err)
+
+		manifestData := fileIO.writeFiles["manifest.yaml"]
+		var raw map[string]interface{}
+		require.NoError(s.T(), yaml.Unmarshal(manifestData, &raw))
+
+		require.Equal(s.T(), "run.googleapis.com/v1", raw["apiVersion"])
+		require.Equal(s.T(), "WorkerPool", raw["kind"])
+
+		spec := raw["spec"].(map[string]interface{})
+		template := spec["template"].(map[string]interface{})
+		tmplSpec := template["spec"].(map[string]interface{})
+		require.Empty(s.T(), tmplSpec["serviceAccountName"])
+		require.Nil(s.T(), tmplSpec["timeoutSeconds"])
+
+		containers := tmplSpec["containers"].([]interface{})
+		require.Len(s.T(), containers, 1)
+		container := containers[0].(map[string]interface{})
+		require.Equal(s.T(), "example.com/worker@sha256:def", container["image"])
+
+		resources := container["resources"].(map[string]interface{})
+		limits := resources["limits"].(map[string]interface{})
+		require.Equal(s.T(), "1000m", limits["cpu"])
+		require.Equal(s.T(), "512Mi", limits["memory"])
 	})
 }
 

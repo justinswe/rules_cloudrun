@@ -1,15 +1,11 @@
-apiVersion: serving.knative.dev/v1
-kind: Service
+apiVersion: run.googleapis.com/v1
+kind: WorkerPool
 metadata:
-  annotations:
-    run.googleapis.com/ingress: all
   name: myworker
 spec:
   template:
     metadata:
       annotations:
-        autoscaling.knative.dev/maxScale: "3"
-        autoscaling.knative.dev/minScale: "0"
         run.googleapis.com/execution-environment: gen2
     spec:
       containers:
@@ -19,6 +15,6 @@ spec:
         image: us-central1-docker.pkg.dev/lavndr-ai/lavndr-ai/myworker@sha256:46e099f6d3eab8fc3246ad867aace15a5503a4cf6c7c54f2ffac5c28ea1facad
         resources:
           limits:
-            cpu: "1"
+            cpu: 1000m
             memory: 512Mi
       timeoutSeconds: 300

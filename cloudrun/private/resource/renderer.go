@@ -120,6 +120,12 @@ func (r *Renderer) RenderManifest(options RenderOptions) error {
 		if err != nil {
 			return fmt.Errorf("marshal job manifest: %w", err)
 		}
+	case resourceTypeWorker:
+		worker := buildWorkerManifest(config, options)
+		manifestContent, err = yaml.Marshal(worker)
+		if err != nil {
+			return fmt.Errorf("marshal worker manifest: %w", err)
+		}
 	default:
 		service, buildErr := buildServiceManifest(config, options)
 		if buildErr != nil {
@@ -451,6 +457,162 @@ func buildJobEnvironmentVariables(entries []envEntry) []jobEnvVar {
 			Name: entry.Variable,
 			ValueFrom: &jobEnvVarSource{
 				SecretKeyRef: &jobSecretKeyRef{
+					Name: secretName,
+					Key:  "latest",
+				},
+			},
+		})
+	}
+	return envVars
+}
+
+// ── Worker pool manifest ────────────────────────────────────────────────────
+
+type workerPoolManifest struct {
+	APIVersion string             `json:"apiVersion"`
+	Kind       string             `json:"kind"`
+	Metadata   workerPoolMetadata `json:"metadata"`
+	Spec       workerPoolSpec     `json:"spec"`
+}
+
+type workerPoolMetadata struct {
+	Name string `json:"name"`
+}
+
+type workerPoolSpec struct {
+	Template workerPoolTemplate `json:"template"`
+}
+
+type workerPoolTemplate struct {
+	Metadata *workerPoolAnnotatedMetadata `json:"metadata,omitempty"`
+	Spec     workerPoolRevisionSpec       `json:"spec"`
+}
+
+type workerPoolAnnotatedMetadata struct {
+	Annotations map[string]string `json:"annotations,omitempty"`
+}
+
+type workerPoolRevisionSpec struct {
+	Containers         []workerPoolContainer `json:"containers"`
+	ServiceAccountName string                `json:"serviceAccountName,omitempty"`
+	TimeoutSeconds     *int                  `json:"timeoutSeconds,omitempty"`
+}
+
+type workerPoolContainer struct {
+	Image     string                       `json:"image"`
+	Resources workerPoolContainerResources `json:"resources"`
+	Env       []workerPoolEnvVar           `json:"env,omitempty"`
+}
+
+type workerPoolContainerResources struct {
+	Limits map[string]string `json:"limits"`
+}
+
+type workerPoolEnvVar struct {
+	Name      string                  `json:"name"`
+	Value     string                  `json:"value,omitempty"`
+	ValueFrom *workerPoolEnvVarSource `json:"valueFrom,omitempty"`
+}
+
+type workerPoolEnvVarSource struct {
+	SecretKeyRef *workerPoolSecretKeyRef `json:"secretKeyRef"`
+}
+
+type workerPoolSecretKeyRef struct {
+	Name string `json:"name"`
+	Key  string `json:"key"`
+}
+
+func buildWorkerManifest(config appHostingConfig, options RenderOptions) *workerPoolManifest {
+	cpu := defaultCPU
+	if config.RunConfig.CPU != nil {
+		cpu = *config.RunConfig.CPU
+	}
+	memoryMiB := defaultMemoryMiB
+	if config.RunConfig.MemoryMiB != nil {
+		memoryMiB = *config.RunConfig.MemoryMiB
+	}
+
+	container := workerPoolContainer{
+		Image: options.Image,
+		Resources: workerPoolContainerResources{
+			Limits: map[string]string{
+				"cpu":    fmt.Sprintf("%dm", cpu*1000),
+				"memory": fmt.Sprintf("%dMi", memoryMiB),
+			},
+		},
+		Env: buildWorkerEnvironmentVariables(config.Env),
+	}
+
+	revisionSpec := workerPoolRevisionSpec{
+		Containers: []workerPoolContainer{container},
+	}
+	if config.ServiceAccount != "" {
+		revisionSpec.ServiceAccountName = config.ServiceAccount
+	}
+	timeout := options.TimeoutSeconds
+	if timeout > 0 {
+		revisionSpec.TimeoutSeconds = &timeout
+	}
+
+	templateAnnotations := map[string]string{
+		"run.googleapis.com/execution-environment": "gen2",
+	}
+	if config.CloudSQLConnector != "" {
+		templateAnnotations["run.googleapis.com/cloudsql-instances"] = config.CloudSQLConnector
+	}
+	if config.RunConfig.Network != "" && config.RunConfig.Subnet != "" {
+		templateAnnotations["run.googleapis.com/network-interfaces"] = fmt.Sprintf(
+			`[{"network":"%s","subnetwork":"%s"}]`,
+			config.RunConfig.Network,
+			config.RunConfig.Subnet,
+		)
+	}
+	if config.RunConfig.VPCConnector != "" {
+		templateAnnotations["run.googleapis.com/vpc-access-connector"] = config.RunConfig.VPCConnector
+	}
+	if config.RunConfig.VPCEgress != "" {
+		templateAnnotations["run.googleapis.com/vpc-access-egress"] = config.RunConfig.VPCEgress
+	}
+
+	template := workerPoolTemplate{
+		Spec: revisionSpec,
+	}
+	if len(templateAnnotations) > 0 {
+		template.Metadata = &workerPoolAnnotatedMetadata{
+			Annotations: templateAnnotations,
+		}
+	}
+
+	return &workerPoolManifest{
+		APIVersion: "run.googleapis.com/v1",
+		Kind:       "WorkerPool",
+		Metadata:   workerPoolMetadata{Name: options.ServiceName},
+		Spec:       workerPoolSpec{Template: template},
+	}
+}
+
+func buildWorkerEnvironmentVariables(entries []envEntry) []workerPoolEnvVar {
+	envVars := make([]workerPoolEnvVar, 0, len(entries))
+	for _, entry := range entries {
+		if entry.Variable == "" {
+			continue
+		}
+		if entry.Value != "" {
+			envVars = append(envVars, workerPoolEnvVar{
+				Name:  entry.Variable,
+				Value: entry.Value,
+			})
+			continue
+		}
+		if entry.Secret == "" {
+			continue
+		}
+		secretName := secretNameFromReference(entry.Secret)
+		envVars = append(envVars, workerPoolEnvVar{
+			Name: entry.Variable,
+			ValueFrom: &workerPoolEnvVarSource{
+				SecretKeyRef: &workerPoolSecretKeyRef{
 					Name: secretName,
 					Key:  "latest",
 				},
