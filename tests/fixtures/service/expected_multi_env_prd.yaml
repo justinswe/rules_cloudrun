@@ -16,6 +16,10 @@ spec:
       containerConcurrency: 1000
       containers:
       - env:
+        - name: DATABASE_URL
+          value: postgresql://localhost:5432/myapp
+        - name: LOG_LEVEL
+          value: info
         - name: API_KEY
           valueFrom:
             secretKeyRef:

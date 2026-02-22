@@ -20,7 +20,7 @@ def _cloudrun_render_impl(ctx):
     # Config merging step
     if ctx.file.base_config:
         inputs.append(ctx.file.base_config)
-        merge_cmd = '"{yq}" eval-all \'select(fileIndex == 0) * select(fileIndex == 1)\' "{base}" "{overlay}" > "$MERGED"'.format(
+        merge_cmd = '"{yq}" eval-all \'. as $item ireduce ({{}}; . *+ $item)\' "{base}" "{overlay}" > "$MERGED"'.format(
             yq = yq.path,
             base = ctx.file.base_config.path,
             overlay = config.path,

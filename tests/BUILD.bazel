@@ -1,3 +1,4 @@
+load("//:defs.bzl", "cloudrun_service")
 load("//tests:utils.bzl", "cloudrun_deploy_script_test", "cloudrun_manifest_test", "cloudrun_validation_test")
 
 # ─── Golden file tests for cloudrun_service rule ─────────────────────────────
@@ -144,4 +145,20 @@ cloudrun_validation_test(
         "Unknown top-level key 'unknownKey'",
         "has both 'value' and 'secret'",
     ],
+)
+
+cloudrun_service(
+    name = "example_empty_overlay",
+    base_config = "//docs/examples:apphosting.yaml",
+    config_format = "apphosting.*.yaml",
+    configs = ["//tests/fixtures/service:apphosting.empty.yaml"],
+    image = "gcr.io/my-project/myapp:latest",
+    region = "us-central1",
+    service_name = "myapp",
+)
+
+cloudrun_manifest_test(
+    name = "test_service_empty_overlay_manifest",
+    expected = "//tests/fixtures/service:expected_single_env.yaml",
+    render_target = ":example_empty_overlay_empty.render",
 )
