@@ -34,7 +34,7 @@ case "$RESOURCE_TYPE" in
     ALLOWED_RUN="cpu memoryMiB minInstances maxInstances concurrency network subnet vpcConnector vpcEgress"
     ;;
   job)
-    ALLOWED_RUN="cpu memoryMiB taskCount parallelism maxRetries timeoutSeconds"
+    ALLOWED_RUN="cpu memoryMiB taskCount parallelism maxRetries timeoutSeconds network subnet vpcConnector vpcEgress"
     ;;
   worker)
     ALLOWED_RUN="cpu memoryMiB minInstances maxInstances network subnet vpcConnector vpcEgress"

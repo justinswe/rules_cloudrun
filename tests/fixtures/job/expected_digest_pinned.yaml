@@ -4,6 +4,10 @@ metadata:
   name: myjob
 spec:
   template:
+    metadata:
+      annotations:
+        run.googleapis.com/network-interfaces: '[{"network":"my-vpc","subnetwork":"my-subnet"}]'
+        run.googleapis.com/vpc-access-egress: all-traffic
     spec:
       parallelism: 1
       taskCount: 1

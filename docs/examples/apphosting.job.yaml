@@ -5,3 +5,6 @@ runConfig:
   parallelism: 1
   maxRetries: 3
   timeoutSeconds: 600
+  network: my-vpc
+  subnet: my-subnet
+  vpcEgress: all-traffic

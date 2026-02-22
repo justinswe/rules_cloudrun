@@ -422,6 +422,20 @@ func buildJobManifest(config appHostingConfig, options RenderOptions) *jobManife
 	if config.CloudSQLConnector != "" {
 		annotations["run.googleapis.com/cloudsql-instances"] = config.CloudSQLConnector
 	}
+	if config.RunConfig.Network != "" && config.RunConfig.Subnet != "" {
+		annotations["run.googleapis.com/network-interfaces"] = fmt.Sprintf(
+			`[{"network":"%s","subnetwork":"%s"}]`,
+			config.RunConfig.Network,
+			config.RunConfig.Subnet,
+		)
+	}
+	if config.RunConfig.VPCConnector != "" {
+		annotations["run.googleapis.com/vpc-access-connector"] = config.RunConfig.VPCConnector
+	}
+	if config.RunConfig.VPCEgress != "" {
+		annotations["run.googleapis.com/vpc-access-egress"] = config.RunConfig.VPCEgress
+	}
+
 	if len(annotations) > 0 {
 		executionTemplate.Metadata = &jobAnnotatedMetadata{
 			Annotations: annotations,
