@@ -224,6 +224,9 @@ Any other top-level key will fail validation.
 | `subnet` | string | — | — | VPC subnet (requires `network`) |
 | `vpcConnector` | string | — | — | Serverless VPC connector |
 | `vpcEgress` | string | — | — | VPC egress setting |
+| `livenessProbe` | object | — | — | [Cloud Run liveness probe](https://cloud.google.com/run/docs/configuring/healthchecks) |
+| `readinessProbe` | object | — | — | [Cloud Run readiness probe](https://cloud.google.com/run/docs/configuring/healthchecks) |
+| `startupProbe` | object | — | — | [Cloud Run startup probe](https://cloud.google.com/run/docs/configuring/healthchecks) |
 
 > **Co-dependency**: `network` and `subnet` must both be specified together.
 

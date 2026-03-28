@@ -77,15 +77,17 @@ def _gcloud_repo_impl(repository_ctx):
     os_part, arch_part = _detect_platform(repository_ctx)
     version = repository_ctx.attr.version
 
-    # gcloud uses "arm" not "arm64" for Linux, and "arm" for macOS
+    # gcloud uses "arm" not "arm64" for Linux/macOS, and "x86_64" not "amd64" for Linux/macOS
     gcloud_arch = arch_part
     if arch_part == "arm64":
         gcloud_arch = "arm"
+    elif arch_part == "amd64":
+        gcloud_arch = "x86_64"
 
     url = "https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-{version}-{os}-{arch}.tar.gz".format(
         version = version,
         os = os_part,
-        arch = gcloud_arch if os_part == "linux" else arch_part,
+        arch = gcloud_arch,
     )
 
     repository_ctx.download_and_extract(
@@ -94,6 +96,8 @@ def _gcloud_repo_impl(repository_ctx):
     )
 
     repository_ctx.file("BUILD.bazel", """
+load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
+
 filegroup(
     name = "sdk",
     srcs = glob(["**/*"]),

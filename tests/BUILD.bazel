@@ -53,13 +53,13 @@ cloudrun_deploy_script_test(
     name = "test_service_deploy_script",
     deploy_target = "//docs/examples:example_service.deploy",
     expected_substrings = [
-        'GCLOUD_TRACK=""',
+        'GCLOUD_TRACK="beta"',
         'GCLOUD_SUBCMD="services"',
         'RESOURCE_TYPE="service"',
         'SERVICE_NAME="myapp"',
         'REGION_FLAG="--region=us-central1"',
         'replace "$MANIFEST"',
-        "exec gcloud",
+        "exec \"$GCLOUD_BIN\"",
         "CLOUDRUN_MANIFEST_EOF",
         "serving.knative.dev/v1",
     ],
@@ -78,7 +78,7 @@ cloudrun_deploy_script_test(
     expected_substrings = [
         "PUSH_RUNFILE=",
         'GCLOUD_SUBCMD="services"',
-        "exec gcloud",
+        "exec \"$GCLOUD_BIN\"",
         "us-central1-docker.pkg.dev/lavndr-ai/lavndr-ai/myapp@sha256:",
     ],
     unexpected_substrings = [
@@ -94,7 +94,7 @@ cloudrun_deploy_script_test(
     expected_substrings = [
         'PUSH_RUNFILE=""',
         "rules-cloudrun.invalid/override-required:latest",
-        "exec gcloud",
+        "exec \"$GCLOUD_BIN\"",
     ],
     unexpected_substrings = [
         "rlocation",
@@ -106,11 +106,11 @@ cloudrun_deploy_script_test(
     name = "test_job_deploy_script",
     deploy_target = "//docs/examples:example_digest_pinned_job.deploy",
     expected_substrings = [
-        'GCLOUD_TRACK=""',
+        'GCLOUD_TRACK="beta"',
         'GCLOUD_SUBCMD="jobs"',
         'RESOURCE_TYPE="job"',
         "run.googleapis.com/v1",
-        "exec gcloud",
+        "exec \"$GCLOUD_BIN\"",
     ],
     unexpected_substrings = [
         "rlocation",
@@ -127,8 +127,8 @@ cloudrun_deploy_script_test(
         'RESOURCE_TYPE="worker"',
         "CLOUDSDK_RUN_REGION",
         'replace "$MANIFEST"',
-        "gcloud components install",
-        "exec gcloud",
+        '"$GCLOUD_BIN" components install',
+        "exec \"$GCLOUD_BIN\"",
     ],
     unexpected_substrings = [
         "rlocation",

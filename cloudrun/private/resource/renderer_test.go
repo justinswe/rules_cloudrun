@@ -89,15 +89,18 @@ env:
 		metadata := raw["metadata"].(map[string]interface{})
 		require.Equal(s.T(), "myapp", metadata["name"])
 		require.Nil(s.T(), metadata["labels"])
+		metaAnnotations := metadata["annotations"].(map[string]interface{})
+		require.Equal(s.T(), "all", metaAnnotations["run.googleapis.com/ingress"])
+		require.Equal(s.T(), "0", metaAnnotations["run.googleapis.com/minScale"])
+		require.Equal(s.T(), "3", metaAnnotations["run.googleapis.com/maxScale"])
 
 		spec := raw["spec"].(map[string]interface{})
 		template := spec["template"].(map[string]interface{})
 		tmplMeta := template["metadata"].(map[string]interface{})
 		annotations := tmplMeta["annotations"].(map[string]interface{})
 		require.Equal(s.T(), "gen2", annotations["run.googleapis.com/execution-environment"])
-		require.Equal(s.T(), "0", annotations["autoscaling.knative.dev/minScale"])
-		require.Equal(s.T(), "3", annotations["autoscaling.knative.dev/maxScale"])
-
+		require.Nil(s.T(), annotations["autoscaling.knative.dev/minScale"], "knative autoscaling annotations must not be present")
+		require.Nil(s.T(), annotations["autoscaling.knative.dev/maxScale"], "knative autoscaling annotations must not be present")
 		tmplSpec := template["spec"].(map[string]interface{})
 		require.EqualValues(s.T(), 1000, tmplSpec["containerConcurrency"])
 		require.EqualValues(s.T(), 300, tmplSpec["timeoutSeconds"])
@@ -275,6 +278,98 @@ env:
 		require.Equal(s.T(), "latest", secretRef["key"])
 	})
 
+	s.Run("renders probes", func() {
+		fileIO := &fakeFileIO{
+			readFiles: map[string][]byte{
+				"config.yaml": []byte(`
+runConfig:
+  livenessProbe:
+    initialDelaySeconds: 10
+    timeoutSeconds: 5
+    periodSeconds: 15
+    failureThreshold: 3
+    httpGet:
+      path: /healthz
+      port: 8080
+      httpHeaders:
+        - name: X-Custom-Header
+          value: CustomValue
+  readinessProbe:
+    tcpSocket:
+      port: 8081
+  startupProbe:
+    grpc:
+      port: 8082
+      service: my-service
+`),
+			},
+			writeFiles: map[string][]byte{},
+		}
+
+		renderer := NewRenderer(fileIO)
+		options := RenderOptions{
+			ConfigPath:     "config.yaml",
+			ServiceName:    "myapp",
+			Region:         "us-central1",
+			Image:          "example.com/myapp@sha256:abc",
+			ResourceType:   "service",
+			TimeoutSeconds: 300,
+			OutputPath:     "manifest.yaml",
+		}
+		err := renderer.RenderManifest(options)
+		require.NoError(s.T(), err)
+
+		manifestData, found := fileIO.writeFiles["manifest.yaml"]
+		require.True(s.T(), found)
+
+		var raw map[string]interface{}
+		require.NoError(s.T(), yaml.Unmarshal(manifestData, &raw))
+
+		spec := raw["spec"].(map[string]interface{})
+		template := spec["template"].(map[string]interface{})
+		tmplSpec := template["spec"].(map[string]interface{})
+		containers := tmplSpec["containers"].([]interface{})
+		require.Len(s.T(), containers, 1)
+
+		metadata := raw["metadata"].(map[string]interface{})
+		annotations := metadata["annotations"].(map[string]interface{})
+		require.Equal(s.T(), "BETA", annotations["run.googleapis.com/launch-stage"])
+
+		container := containers[0].(map[string]interface{})
+
+		// Validate liveness probe (HTTP Get)
+		require.NotNil(s.T(), container["livenessProbe"])
+		liveness := container["livenessProbe"].(map[string]interface{})
+		require.EqualValues(s.T(), 10, liveness["initialDelaySeconds"])
+		require.EqualValues(s.T(), 5, liveness["timeoutSeconds"])
+		require.EqualValues(s.T(), 15, liveness["periodSeconds"])
+		require.EqualValues(s.T(), 3, liveness["failureThreshold"])
+		require.NotNil(s.T(), liveness["httpGet"])
+		httpGet := liveness["httpGet"].(map[string]interface{})
+		require.Equal(s.T(), "/healthz", httpGet["path"])
+		require.EqualValues(s.T(), 8080, httpGet["port"])
+		headers := httpGet["httpHeaders"].([]interface{})
+		require.Len(s.T(), headers, 1)
+		header := headers[0].(map[string]interface{})
+		require.Equal(s.T(), "X-Custom-Header", header["name"])
+		require.Equal(s.T(), "CustomValue", header["value"])
+
+		// Validate readiness probe (TCP Socket)
+		require.NotNil(s.T(), container["readinessProbe"])
+		readiness := container["readinessProbe"].(map[string]interface{})
+		require.NotNil(s.T(), readiness["tcpSocket"])
+		tcpSocket := readiness["tcpSocket"].(map[string]interface{})
+		require.EqualValues(s.T(), 8081, tcpSocket["port"])
+
+		// Validate startup probe (GRPC)
+		require.NotNil(s.T(), container["startupProbe"])
+		startup := container["startupProbe"].(map[string]interface{})
+		require.NotNil(s.T(), startup["grpc"])
+		grpcProbe := startup["grpc"].(map[string]interface{})
+		require.EqualValues(s.T(), 8082, grpcProbe["port"])
+		require.Equal(s.T(), "my-service", grpcProbe["service"])
+	})
+
 	s.Run("renders job manifest with defaults", func() {
 		fileIO := &fakeFileIO{
 			readFiles: map[string][]byte{
@@ -368,6 +463,9 @@ env:
 
 		metadata := raw["metadata"].(map[string]interface{})
 		require.Equal(s.T(), "myworker", metadata["name"])
+		metaAnnotations := metadata["annotations"].(map[string]interface{})
+		require.Equal(s.T(), "1", metaAnnotations["run.googleapis.com/minScale"])
+		require.Equal(s.T(), "5", metaAnnotations["run.googleapis.com/maxScale"])
 
 		spec := raw["spec"].(map[string]interface{})
 		require.Nil(s.T(), spec["scaling"], "scaling must not be in worker pool YAML; use gcloud flags instead")
@@ -407,6 +505,98 @@ env:
 		secretRef := env1["valueFrom"].(map[string]interface{})["secretKeyRef"].(map[string]interface{})
 		require.Equal(s.T(), "DISCORD_BOT_TOKEN", secretRef["name"])
 		require.Equal(s.T(), "latest", secretRef["key"])
+	})
+
+	s.Run("renders worker pool probes", func() {
+		fileIO := &fakeFileIO{
+			readFiles: map[string][]byte{
+				"config.yaml": []byte(`
+runConfig:
+  livenessProbe:
+    initialDelaySeconds: 10
+    timeoutSeconds: 5
+    periodSeconds: 15
+    failureThreshold: 3
+    httpGet:
+      path: /healthz
+      port: 8080
+      httpHeaders:
+        - name: X-Custom-Header
+          value: CustomValue
+  readinessProbe:
+    tcpSocket:
+      port: 8081
+  startupProbe:
+    grpc:
+      port: 8082
+      service: my-service
+`),
+			},
+			writeFiles: map[string][]byte{},
+		}
+
+		renderer := NewRenderer(fileIO)
+		options := RenderOptions{
+			ConfigPath:     "config.yaml",
+			ServiceName:    "myapp-worker",
+			Region:         "us-central1",
+			Image:          "example.com/myapp-worker@sha256:abc",
+			ResourceType:   "worker",
+			TimeoutSeconds: 300,
+			OutputPath:     "manifest.yaml",
+		}
+		err := renderer.RenderManifest(options)
+		require.NoError(s.T(), err)
+
+		manifestData, found := fileIO.writeFiles["manifest.yaml"]
+		require.True(s.T(), found)
+
+		var raw map[string]interface{}
+		require.NoError(s.T(), yaml.Unmarshal(manifestData, &raw))
+
+		spec := raw["spec"].(map[string]interface{})
+		template := spec["template"].(map[string]interface{})
+		tmplSpec := template["spec"].(map[string]interface{})
+		containers := tmplSpec["containers"].([]interface{})
+		require.Len(s.T(), containers, 1)
+
+		metadata := raw["metadata"].(map[string]interface{})
+		annotations := metadata["annotations"].(map[string]interface{})
+		require.Equal(s.T(), "BETA", annotations["run.googleapis.com/launch-stage"])
+
+		container := containers[0].(map[string]interface{})
+
+		// Validate liveness probe (HTTP Get)
+		require.NotNil(s.T(), container["livenessProbe"])
+		liveness := container["livenessProbe"].(map[string]interface{})
+		require.EqualValues(s.T(), 10, liveness["initialDelaySeconds"])
+		require.EqualValues(s.T(), 5, liveness["timeoutSeconds"])
+		require.EqualValues(s.T(), 15, liveness["periodSeconds"])
+		require.EqualValues(s.T(), 3, liveness["failureThreshold"])
+		require.NotNil(s.T(), liveness["httpGet"])
+		httpGet := liveness["httpGet"].(map[string]interface{})
+		require.Equal(s.T(), "/healthz", httpGet["path"])
+		require.EqualValues(s.T(), 8080, httpGet["port"])
+		headers := httpGet["httpHeaders"].([]interface{})
+		require.Len(s.T(), headers, 1)
+		header := headers[0].(map[string]interface{})
+		require.Equal(s.T(), "X-Custom-Header", header["name"])
+		require.Equal(s.T(), "CustomValue", header["value"])
+
+		// Validate readiness probe (TCP Socket)
+		require.NotNil(s.T(), container["readinessProbe"])
+		readiness := container["readinessProbe"].(map[string]interface{})
+		require.NotNil(s.T(), readiness["tcpSocket"])
+		tcpSocket := readiness["tcpSocket"].(map[string]interface{})
+		require.EqualValues(s.T(), 8081, tcpSocket["port"])
+
+		// Validate startup probe (GRPC)
+		require.NotNil(s.T(), container["startupProbe"])
+		startup := container["startupProbe"].(map[string]interface{})
+		require.NotNil(s.T(), startup["grpc"])
+		grpcProbe := startup["grpc"].(map[string]interface{})
+		require.EqualValues(s.T(), 8082, grpcProbe["port"])
+		require.Equal(s.T(), "my-service", grpcProbe["service"])
 	})
 
 	s.Run("renders worker pool manifest with defaults", func() {

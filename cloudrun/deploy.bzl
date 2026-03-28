@@ -42,6 +42,7 @@ readonly GCLOUD_SUBCMD="${BZL_GCLOUD_SUBCMD}"
 readonly REGION_FLAG="${BZL_REGION_FLAG}"
 readonly PROJECT_FLAG="${BZL_PROJECT_FLAG}"
 readonly PUSH_RUNFILE="${BZL_PUSH_RUNFILE}"
+readonly GCLOUD_RUNFILE="${BZL_GCLOUD_RUNFILE}"
 
 # ── Embedded manifest (generated during bazel build) ─────────────────────────
 MANIFEST=\\$(mktemp -t cloudrun-XXXXXX.yaml)
@@ -66,6 +67,17 @@ while [[ $# -gt 0 ]]; do
     *) EXTRA_ARGS+=("$1"); shift;;
   esac
 done
+
+# ── Resolve gcloud binary ────────────────────────────────────────────────────
+if [[ -n "$GCLOUD_RUNFILE" ]]; then
+  GCLOUD_BIN="${BASH_SOURCE[0]}.runfiles/$GCLOUD_RUNFILE"
+else
+  GCLOUD_BIN="gcloud"
+fi
+if [[ ! -x "$GCLOUD_BIN" && "$GCLOUD_BIN" != "gcloud" ]]; then
+  echo "ERROR: gcloud binary not found at $GCLOUD_BIN" >&2
+  exit 1
+fi
 
 # ── Apply image override ─────────────────────────────────────────────────────
 if [[ -n "$IMAGE_OVERRIDE" ]]; then
@@ -107,7 +119,7 @@ echo ""
 
 # Ensure required gcloud track components are installed.
 if [[ -n "$GCLOUD_TRACK" ]]; then
-  gcloud components install "$GCLOUD_TRACK" --quiet 2>/dev/null || true
+  "$GCLOUD_BIN" components install "$GCLOUD_TRACK" --quiet 2>/dev/null || true
 fi
 
 GCLOUD_ARGS=()
@@ -128,7 +140,7 @@ if [[ "${#EXTRA_ARGS[@]}" -gt 0 ]]; then
   GCLOUD_ARGS+=("${EXTRA_ARGS[@]}")
 fi
 
-exec gcloud "${GCLOUD_ARGS[@]}"
+exec "$GCLOUD_BIN" "${GCLOUD_ARGS[@]}"
 PART2_END
 
 chmod +x "$BZL_OUTPUT"
@@ -141,12 +153,11 @@ def _cloudrun_deploy_impl(ctx):
     # ── Resolve gcloud subcommand and release track at analysis time ─────
     resource_type = ctx.attr.resource_type
     gcloud_subcmd = "services"
-    gcloud_track = ""
+    gcloud_track = "beta"
     if resource_type == "job":
         gcloud_subcmd = "jobs"
     elif resource_type == "worker":
         gcloud_subcmd = "worker-pools"
-        gcloud_track = "beta"
     if resource_type == "service" and len(ctx.attr.regions) > 1:
         gcloud_subcmd = "multi-region-services"
 
@@ -162,13 +173,18 @@ def _cloudrun_deploy_impl(ctx):
     if ctx.attr.project_id:
         project_flag = "--project=" + ctx.attr.project_id
 
-    # ── Resolve push binary runfiles path ────────────────────────────────
+    # ── Resolve binary runfiles paths ────────────────────────────────────
     push_runfile = ""
     runfiles = ctx.runfiles(files = [])
     if ctx.attr.push_executable:
         push_runfile = _runfiles_path(ctx, ctx.executable.push_executable)
         runfiles = ctx.runfiles(files = [ctx.executable.push_executable])
         runfiles = runfiles.merge(ctx.attr.push_executable[DefaultInfo].default_runfiles)
+        
+    gcloud_runfile = ""
+    if hasattr(ctx.executable, "_gcloud") and ctx.executable._gcloud:
+        gcloud_runfile = _runfiles_path(ctx, ctx.executable._gcloud)
+        runfiles = runfiles.merge(ctx.attr._gcloud[DefaultInfo].default_runfiles)
 
     # ── Assemble the self-contained deploy script ────────────────────────
     ctx.actions.run_shell(
@@ -184,6 +200,7 @@ def _cloudrun_deploy_impl(ctx):
             "BZL_REGION_FLAG": region_flag,
             "BZL_PROJECT_FLAG": project_flag,
             "BZL_PUSH_RUNFILE": push_runfile,
+            "BZL_GCLOUD_RUNFILE": gcloud_runfile,
         },
         command = _ASSEMBLE_DEPLOY_COMMAND,
         mnemonic = "CloudRunDeployAssemble",
@@ -204,6 +221,11 @@ cloudrun_deploy_target = rule(
         "regions": attr.string_list(),
         "resource_type": attr.string(default = "service"),
         "service_name": attr.string(mandatory = True),
+        "_gcloud": attr.label(
+            default = Label("@gcloud_sdk//:gcloud"),
+            executable = True,
+            cfg = "target",
+        ),
     },
     executable = True,
 )

@@ -1,6 +1,9 @@
 apiVersion: run.googleapis.com/v1
 kind: WorkerPool
 metadata:
+  annotations:
+    run.googleapis.com/maxScale: "3"
+    run.googleapis.com/minScale: "0"
   name: myworker
 spec:
   template:

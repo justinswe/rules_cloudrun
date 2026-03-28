@@ -12,6 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apiresource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	servingv1 "knative.dev/serving/pkg/apis/serving/v1"
 	"sigs.k8s.io/yaml"
 )
@@ -67,19 +68,53 @@ type appHostingConfig struct {
 }
 
 type runConfigEntry struct {
-	CPU            *int   `yaml:"cpu"`
-	MemoryMiB      *int   `yaml:"memoryMiB"`
-	MinInstances   *int   `yaml:"minInstances"`
-	MaxInstances   *int   `yaml:"maxInstances"`
-	Concurrency    *int   `yaml:"concurrency"`
-	Network        string `yaml:"network"`
-	Subnet         string `yaml:"subnet"`
-	VPCConnector   string `yaml:"vpcConnector"`
-	VPCEgress      string `yaml:"vpcEgress"`
-	TaskCount      *int   `yaml:"taskCount"`
-	Parallelism    *int   `yaml:"parallelism"`
-	MaxRetries     *int   `yaml:"maxRetries"`
-	TimeoutSeconds *int   `yaml:"timeoutSeconds"`
+	CPU            *int        `yaml:"cpu"`
+	MemoryMiB      *int        `yaml:"memoryMiB"`
+	MinInstances   *int        `yaml:"minInstances"`
+	MaxInstances   *int        `yaml:"maxInstances"`
+	Concurrency    *int        `yaml:"concurrency"`
+	Network        string      `yaml:"network"`
+	Subnet         string      `yaml:"subnet"`
+	VPCConnector   string      `yaml:"vpcConnector"`
+	VPCEgress      string      `yaml:"vpcEgress"`
+	TaskCount      *int        `yaml:"taskCount"`
+	Parallelism    *int        `yaml:"parallelism"`
+	MaxRetries     *int        `yaml:"maxRetries"`
+	TimeoutSeconds *int        `yaml:"timeoutSeconds"`
+	LivenessProbe  *probeEntry `yaml:"livenessProbe"`
+	ReadinessProbe *probeEntry `yaml:"readinessProbe"`
+	StartupProbe   *probeEntry `yaml:"startupProbe"`
+}
+
+type probeEntry struct {
+	InitialDelaySeconds *int32          `yaml:"initialDelaySeconds"`
+	TimeoutSeconds      *int32          `yaml:"timeoutSeconds"`
+	PeriodSeconds       *int32          `yaml:"periodSeconds"`
+	SuccessThreshold    *int32          `yaml:"successThreshold"`
+	FailureThreshold    *int32          `yaml:"failureThreshold"`
+	HTTPGet             *httpGetEntry   `yaml:"httpGet"`
+	TCPSocket           *tcpSocketEntry `yaml:"tcpSocket"`
+	GRPC                *grpcEntry      `yaml:"grpc"`
+}
+
+type httpGetEntry struct {
+	Path        string            `yaml:"path"`
+	Port        *int32            `yaml:"port"`
+	HTTPHeaders []httpHeaderEntry `yaml:"httpHeaders"`
+}
+
+type httpHeaderEntry struct {
+	Name  string `yaml:"name"`
+	Value string `yaml:"value"`
+}
+
+type tcpSocketEntry struct {
+	Port *int32 `yaml:"port"`
+}
+
+type grpcEntry struct {
+	Port    *int32 `yaml:"port"`
+	Service string `yaml:"service"`
 }
 
 type envEntry struct {
@@ -167,16 +202,10 @@ func buildServiceManifest(config appHostingConfig, options RenderOptions) (*serv
 	}
 
 	templateAnnotations := map[string]string{
-		"run.googleapis.com/execution-environment": "gen2",
-	}
-	if config.RunConfig.MinInstances != nil {
-		templateAnnotations["autoscaling.knative.dev/minScale"] = strconv.Itoa(*config.RunConfig.MinInstances)
-	}
-	if config.RunConfig.MaxInstances != nil {
-		templateAnnotations["autoscaling.knative.dev/maxScale"] = strconv.Itoa(*config.RunConfig.MaxInstances)
+	        "run.googleapis.com/execution-environment": "gen2",
 	}
 	if config.CloudSQLConnector != "" {
-		templateAnnotations["run.googleapis.com/cloudsql-instances"] = config.CloudSQLConnector
+	        templateAnnotations["run.googleapis.com/cloudsql-instances"] = config.CloudSQLConnector
 	}
 	if config.RunConfig.Network != "" && config.RunConfig.Subnet != "" {
 		templateAnnotations["run.googleapis.com/network-interfaces"] = fmt.Sprintf(
@@ -198,7 +227,10 @@ func buildServiceManifest(config appHostingConfig, options RenderOptions) (*serv
 		Resources: corev1.ResourceRequirements{
 			Limits: limits,
 		},
-		Env: envVars,
+		Env:            envVars,
+		LivenessProbe:  buildCoreV1Probe(config.RunConfig.LivenessProbe),
+		ReadinessProbe: buildCoreV1Probe(config.RunConfig.ReadinessProbe),
+		StartupProbe:   buildCoreV1Probe(config.RunConfig.StartupProbe),
 	}
 
 	timeoutSeconds := int64(timeout)
@@ -216,16 +248,27 @@ func buildServiceManifest(config appHostingConfig, options RenderOptions) (*serv
 		revisionSpec.ContainerConcurrency = &containerConcurrency
 	}
 
+	serviceAnnotations := map[string]string{
+	        "run.googleapis.com/ingress": "all",
+	}
+	if config.RunConfig.MinInstances != nil {
+	        serviceAnnotations["run.googleapis.com/minScale"] = strconv.Itoa(*config.RunConfig.MinInstances)
+	}
+	if config.RunConfig.MaxInstances != nil {
+	        serviceAnnotations["run.googleapis.com/maxScale"] = strconv.Itoa(*config.RunConfig.MaxInstances)
+	}
+	if config.RunConfig.LivenessProbe != nil || config.RunConfig.ReadinessProbe != nil || config.RunConfig.StartupProbe != nil {
+	        serviceAnnotations["run.googleapis.com/launch-stage"] = "BETA"
+	}
+
 	service := &servingv1.Service{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "serving.knative.dev/v1",
 			Kind:       "Service",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: options.ServiceName,
-			Annotations: map[string]string{
-				"run.googleapis.com/ingress": "all",
-			},
+			Name:        options.ServiceName,
+			Annotations: serviceAnnotations,
 		},
 		Spec: servingv1.ServiceSpec{
 			ConfigurationSpec: servingv1.ConfigurationSpec{
@@ -267,6 +310,58 @@ func removeEmptyContainerNames(node interface{}) {
 			removeEmptyContainerNames(item)
 		}
 	}
+}
+
+func buildCoreV1Probe(p *probeEntry) *corev1.Probe {
+	if p == nil {
+		return nil
+	}
+	probe := &corev1.Probe{}
+	if p.InitialDelaySeconds != nil {
+		probe.InitialDelaySeconds = *p.InitialDelaySeconds
+	}
+	if p.TimeoutSeconds != nil {
+		probe.TimeoutSeconds = *p.TimeoutSeconds
+	}
+	if p.PeriodSeconds != nil {
+		probe.PeriodSeconds = *p.PeriodSeconds
+	}
+	if p.SuccessThreshold != nil {
+		probe.SuccessThreshold = *p.SuccessThreshold
+	}
+	if p.FailureThreshold != nil {
+		probe.FailureThreshold = *p.FailureThreshold
+	}
+
+	if p.HTTPGet != nil {
+		probe.HTTPGet = &corev1.HTTPGetAction{
+			Path: p.HTTPGet.Path,
+		}
+		if p.HTTPGet.Port != nil {
+			probe.HTTPGet.Port = intstr.FromInt32(*p.HTTPGet.Port)
+		}
+		for _, h := range p.HTTPGet.HTTPHeaders {
+			probe.HTTPGet.HTTPHeaders = append(probe.HTTPGet.HTTPHeaders, corev1.HTTPHeader{
+				Name:  h.Name,
+				Value: h.Value,
+			})
+		}
+	} else if p.TCPSocket != nil {
+		probe.TCPSocket = &corev1.TCPSocketAction{}
+		if p.TCPSocket.Port != nil {
+			probe.TCPSocket.Port = intstr.FromInt32(*p.TCPSocket.Port)
+		}
+	} else if p.GRPC != nil {
+		probe.GRPC = &corev1.GRPCAction{}
+		if p.GRPC.Port != nil {
+			probe.GRPC.Port = *p.GRPC.Port
+		}
+		if p.GRPC.Service != "" {
+			service := p.GRPC.Service
+			probe.GRPC.Service = &service
+		}
+	}
+	return probe
 }
 
 func buildServiceEnvironmentVariables(entries []envEntry) []corev1.EnvVar {
@@ -490,7 +585,8 @@ type workerPoolManifest struct {
 }
 
 type workerPoolMetadata struct {
-	Name string `json:"name"`
+	Name        string            `json:"name"`
+	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
 type workerPoolSpec struct {
@@ -513,9 +609,43 @@ type workerPoolRevisionSpec struct {
 }
 
 type workerPoolContainer struct {
-	Image     string                       `json:"image"`
-	Resources workerPoolContainerResources `json:"resources"`
-	Env       []workerPoolEnvVar           `json:"env,omitempty"`
+	Image          string                       `json:"image"`
+	Resources      workerPoolContainerResources `json:"resources"`
+	Env            []workerPoolEnvVar           `json:"env,omitempty"`
+	LivenessProbe  *workerPoolProbe             `json:"livenessProbe,omitempty"`
+	ReadinessProbe *workerPoolProbe             `json:"readinessProbe,omitempty"`
+	StartupProbe   *workerPoolProbe             `json:"startupProbe,omitempty"`
+}
+
+type workerPoolProbe struct {
+	InitialDelaySeconds *int32                     `json:"initialDelaySeconds,omitempty"`
+	TimeoutSeconds      *int32                     `json:"timeoutSeconds,omitempty"`
+	PeriodSeconds       *int32                     `json:"periodSeconds,omitempty"`
+	SuccessThreshold    *int32                     `json:"successThreshold,omitempty"`
+	FailureThreshold    *int32                     `json:"failureThreshold,omitempty"`
+	HTTPGet             *workerPoolHTTPGetAction   `json:"httpGet,omitempty"`
+	TCPSocket           *workerPoolTCPSocketAction `json:"tcpSocket,omitempty"`
+	GRPC                *workerPoolGRPCAction      `json:"grpc,omitempty"`
+}
+
+type workerPoolHTTPGetAction struct {
+	Path        string                 `json:"path,omitempty"`
+	Port        *int32                 `json:"port,omitempty"`
+	HTTPHeaders []workerPoolHTTPHeader `json:"httpHeaders,omitempty"`
+}
+
+type workerPoolHTTPHeader struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+type workerPoolTCPSocketAction struct {
+	Port *int32 `json:"port,omitempty"`
+}
+
+type workerPoolGRPCAction struct {
+	Port    *int32 `json:"port,omitempty"`
+	Service string `json:"service,omitempty"`
 }
 
 type workerPoolContainerResources struct {
@@ -537,6 +667,46 @@ type workerPoolSecretKeyRef struct {
 	Key  string `json:"key"`
 }
 
+func buildWorkerPoolProbe(p *probeEntry) *workerPoolProbe {
+	if p == nil {
+		return nil
+	}
+	probe := &workerPoolProbe{
+		InitialDelaySeconds: p.InitialDelaySeconds,
+		TimeoutSeconds:      p.TimeoutSeconds,
+		PeriodSeconds:       p.PeriodSeconds,
+		SuccessThreshold:    p.SuccessThreshold,
+		FailureThreshold:    p.FailureThreshold,
+	}
+
+	if p.HTTPGet != nil {
+		probe.HTTPGet = &workerPoolHTTPGetAction{
+			Path: p.HTTPGet.Path,
+			Port: p.HTTPGet.Port,
+		}
+		for _, h := range p.HTTPGet.HTTPHeaders {
+			probe.HTTPGet.HTTPHeaders = append(probe.HTTPGet.HTTPHeaders, workerPoolHTTPHeader{
+				Name:  h.Name,
+				Value: h.Value,
+			})
+		}
+	} else if p.TCPSocket != nil {
+		probe.TCPSocket = &workerPoolTCPSocketAction{
+			Port: p.TCPSocket.Port,
+		}
+	} else if p.GRPC != nil {
+		var service string
+		if p.GRPC.Service != "" {
+			service = p.GRPC.Service
+		}
+		probe.GRPC = &workerPoolGRPCAction{
+			Port:    p.GRPC.Port,
+			Service: service,
+		}
+	}
+	return probe
+}
+
 func buildWorkerManifest(config appHostingConfig, options RenderOptions) *workerPoolManifest {
 	cpu := defaultCPU
 	if config.RunConfig.CPU != nil {
@@ -555,7 +725,10 @@ func buildWorkerManifest(config appHostingConfig, options RenderOptions) *worker
 				"memory": fmt.Sprintf("%dMi", memoryMiB),
 			},
 		},
-		Env: buildWorkerEnvironmentVariables(config.Env),
+		Env:            buildWorkerEnvironmentVariables(config.Env),
+		LivenessProbe:  buildWorkerPoolProbe(config.RunConfig.LivenessProbe),
+		ReadinessProbe: buildWorkerPoolProbe(config.RunConfig.ReadinessProbe),
+		StartupProbe:   buildWorkerPoolProbe(config.RunConfig.StartupProbe),
 	}
 
 	revisionSpec := workerPoolRevisionSpec{
@@ -573,7 +746,7 @@ func buildWorkerManifest(config appHostingConfig, options RenderOptions) *worker
 		"run.googleapis.com/execution-environment": "gen2",
 	}
 	if config.CloudSQLConnector != "" {
-		templateAnnotations["run.googleapis.com/cloudsql-instances"] = config.CloudSQLConnector
+	        templateAnnotations["run.googleapis.com/cloudsql-instances"] = config.CloudSQLConnector
 	}
 	if config.RunConfig.Network != "" && config.RunConfig.Subnet != "" {
 		templateAnnotations["run.googleapis.com/network-interfaces"] = fmt.Sprintf(
@@ -598,10 +771,28 @@ func buildWorkerManifest(config appHostingConfig, options RenderOptions) *worker
 		}
 	}
 
+	workerAnnotations := map[string]string{}
+	if config.RunConfig.MinInstances != nil {
+	        workerAnnotations["run.googleapis.com/minScale"] = strconv.Itoa(*config.RunConfig.MinInstances)
+	}
+	if config.RunConfig.MaxInstances != nil {
+	        workerAnnotations["run.googleapis.com/maxScale"] = strconv.Itoa(*config.RunConfig.MaxInstances)
+	}
+	if config.RunConfig.LivenessProbe != nil || config.RunConfig.ReadinessProbe != nil || config.RunConfig.StartupProbe != nil {
+	        workerAnnotations["run.googleapis.com/launch-stage"] = "BETA"
+	}
+
+	metadata := workerPoolMetadata{
+		Name: options.ServiceName,
+	}
+	if len(workerAnnotations) > 0 {
+		metadata.Annotations = workerAnnotations
+	}
+
 	return &workerPoolManifest{
 		APIVersion: "run.googleapis.com/v1",
 		Kind:       "WorkerPool",
-		Metadata:   workerPoolMetadata{Name: options.ServiceName},
+		Metadata:   metadata,
 		Spec:       workerPoolSpec{Template: template},
 	}
 }

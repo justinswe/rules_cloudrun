@@ -3,13 +3,13 @@ kind: Service
 metadata:
   annotations:
     run.googleapis.com/ingress: all
+    run.googleapis.com/maxScale: "2"
+    run.googleapis.com/minScale: "0"
   name: myapp
 spec:
   template:
     metadata:
       annotations:
-        autoscaling.knative.dev/maxScale: "2"
-        autoscaling.knative.dev/minScale: "0"
         run.googleapis.com/cloudsql-instances: my-project-dev:us-central1:myapp-db-dev
         run.googleapis.com/execution-environment: gen2
     spec:

@@ -31,13 +31,13 @@ ALLOWED_TOP="runConfig env serviceAccount cloudsqlConnector"
 
 case "$RESOURCE_TYPE" in
   service)
-    ALLOWED_RUN="cpu memoryMiB minInstances maxInstances concurrency network subnet vpcConnector vpcEgress"
+    ALLOWED_RUN="cpu memoryMiB minInstances maxInstances concurrency network subnet vpcConnector vpcEgress livenessProbe readinessProbe startupProbe"
     ;;
   job)
     ALLOWED_RUN="cpu memoryMiB taskCount parallelism maxRetries timeoutSeconds network subnet vpcConnector vpcEgress"
     ;;
   worker)
-    ALLOWED_RUN="cpu memoryMiB minInstances maxInstances network subnet vpcConnector vpcEgress"
+    ALLOWED_RUN="cpu memoryMiB minInstances maxInstances network subnet vpcConnector vpcEgress livenessProbe readinessProbe startupProbe"
     ;;
   *)
     echo "ERROR: Unknown resource type '$RESOURCE_TYPE'" >&2
