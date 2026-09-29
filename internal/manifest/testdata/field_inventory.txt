@@ -1,0 +1,247 @@
+google.cloud.run.v2.BinaryAuthorization.breakglassJustification writable optional string
+google.cloud.run.v2.BinaryAuthorization.policy writable optional string oneof=binauthz_method
+google.cloud.run.v2.BinaryAuthorization.useDefault writable optional bool oneof=binauthz_method
+google.cloud.run.v2.BuildConfig.baseImage writable optional string
+google.cloud.run.v2.BuildConfig.enableAutomaticUpdates writable optional bool
+google.cloud.run.v2.BuildConfig.environmentVariables writable map
+google.cloud.run.v2.BuildConfig.functionTarget writable optional string
+google.cloud.run.v2.BuildConfig.imageUri writable optional string
+google.cloud.run.v2.BuildConfig.name output-only optional string
+google.cloud.run.v2.BuildConfig.serviceAccount writable optional string
+google.cloud.run.v2.BuildConfig.sourceLocation writable optional string
+google.cloud.run.v2.BuildConfig.workerPool writable optional string
+google.cloud.run.v2.CloudSqlInstance.instances writable repeated string
+google.cloud.run.v2.Container.args writable repeated string
+google.cloud.run.v2.Container.baseImageUri writable optional string
+google.cloud.run.v2.Container.buildInfo output-only optional message
+google.cloud.run.v2.Container.command writable repeated string
+google.cloud.run.v2.Container.dependsOn writable repeated string
+google.cloud.run.v2.Container.env writable repeated message
+google.cloud.run.v2.Container.image required optional string
+google.cloud.run.v2.Container.livenessProbe writable optional message
+google.cloud.run.v2.Container.name writable optional string
+google.cloud.run.v2.Container.ports writable repeated message
+google.cloud.run.v2.Container.readinessProbe writable optional message
+google.cloud.run.v2.Container.resources writable optional message
+google.cloud.run.v2.Container.sourceCode writable optional message
+google.cloud.run.v2.Container.startupProbe writable optional message
+google.cloud.run.v2.Container.volumeMounts writable repeated message
+google.cloud.run.v2.Container.workingDir writable optional string
+google.cloud.run.v2.ContainerPort.containerPort writable optional int32
+google.cloud.run.v2.ContainerPort.name writable optional string
+google.cloud.run.v2.EmptyDirVolumeSource.medium writable optional enum enum=MEDIUM_UNSPECIFIED,MEMORY
+google.cloud.run.v2.EmptyDirVolumeSource.sizeLimit writable optional string
+google.cloud.run.v2.EnvVar.name required optional string
+google.cloud.run.v2.EnvVar.value writable optional string oneof=values
+google.cloud.run.v2.EnvVar.valueSource writable optional message oneof=values
+google.cloud.run.v2.EnvVarSource.secretKeyRef writable optional message
+google.cloud.run.v2.ExecutionTemplate.annotations writable map
+google.cloud.run.v2.ExecutionTemplate.labels writable map
+google.cloud.run.v2.ExecutionTemplate.parallelism writable optional int32
+google.cloud.run.v2.ExecutionTemplate.taskCount writable optional int32
+google.cloud.run.v2.ExecutionTemplate.template required optional message
+google.cloud.run.v2.GCSVolumeSource.bucket writable optional string
+google.cloud.run.v2.GCSVolumeSource.mountOptions writable repeated string
+google.cloud.run.v2.GCSVolumeSource.readOnly writable optional bool
+google.cloud.run.v2.GRPCAction.port writable optional int32
+google.cloud.run.v2.GRPCAction.service writable optional string
+google.cloud.run.v2.HTTPGetAction.httpHeaders writable repeated message
+google.cloud.run.v2.HTTPGetAction.path writable optional string
+google.cloud.run.v2.HTTPGetAction.port writable optional int32
+google.cloud.run.v2.HTTPHeader.name required optional string
+google.cloud.run.v2.HTTPHeader.value writable optional string
+google.cloud.run.v2.InstanceSplit.percent writable optional int32
+google.cloud.run.v2.InstanceSplit.revision writable optional string
+google.cloud.run.v2.InstanceSplit.type writable optional enum enum=INSTANCE_SPLIT_ALLOCATION_TYPE_UNSPECIFIED,INSTANCE_SPLIT_ALLOCATION_TYPE_LATEST,INSTANCE_SPLIT_ALLOCATION_TYPE_REVISION
+google.cloud.run.v2.Job.annotations writable map
+google.cloud.run.v2.Job.binaryAuthorization writable optional message
+google.cloud.run.v2.Job.client writable optional string
+google.cloud.run.v2.Job.clientVersion writable optional string
+google.cloud.run.v2.Job.conditions output-only repeated message
+google.cloud.run.v2.Job.createTime output-only optional message
+google.cloud.run.v2.Job.creator output-only optional string
+google.cloud.run.v2.Job.deleteTime output-only optional message
+google.cloud.run.v2.Job.etag writable optional string
+google.cloud.run.v2.Job.executionCount output-only optional int32
+google.cloud.run.v2.Job.expireTime output-only optional message
+google.cloud.run.v2.Job.generation output-only optional int64
+google.cloud.run.v2.Job.labels writable map
+google.cloud.run.v2.Job.lastModifier output-only optional string
+google.cloud.run.v2.Job.latestCreatedExecution output-only optional message
+google.cloud.run.v2.Job.launchStage writable optional enum enum=LAUNCH_STAGE_UNSPECIFIED,UNIMPLEMENTED,PRELAUNCH,EARLY_ACCESS,ALPHA,BETA,GA,DEPRECATED
+google.cloud.run.v2.Job.name writable optional string
+google.cloud.run.v2.Job.observedGeneration output-only optional int64
+google.cloud.run.v2.Job.reconciling output-only optional bool
+google.cloud.run.v2.Job.runExecutionToken writable optional string oneof=create_execution
+google.cloud.run.v2.Job.satisfiesPzs output-only optional bool
+google.cloud.run.v2.Job.startExecutionToken writable optional string oneof=create_execution
+google.cloud.run.v2.Job.template required optional message
+google.cloud.run.v2.Job.terminalCondition output-only optional message
+google.cloud.run.v2.Job.uid output-only optional string
+google.cloud.run.v2.Job.updateTime output-only optional message
+google.cloud.run.v2.NFSVolumeSource.path writable optional string
+google.cloud.run.v2.NFSVolumeSource.readOnly writable optional bool
+google.cloud.run.v2.NFSVolumeSource.server writable optional string
+google.cloud.run.v2.NodeSelector.accelerator required optional string
+google.cloud.run.v2.Probe.failureThreshold writable optional int32
+google.cloud.run.v2.Probe.grpc writable optional message oneof=probe_type
+google.cloud.run.v2.Probe.httpGet writable optional message oneof=probe_type
+google.cloud.run.v2.Probe.initialDelaySeconds writable optional int32
+google.cloud.run.v2.Probe.periodSeconds writable optional int32
+google.cloud.run.v2.Probe.tcpSocket writable optional message oneof=probe_type
+google.cloud.run.v2.Probe.timeoutSeconds writable optional int32
+google.cloud.run.v2.ResourceRequirements.cpuIdle writable optional bool
+google.cloud.run.v2.ResourceRequirements.limits writable map
+google.cloud.run.v2.ResourceRequirements.startupCpuBoost writable optional bool
+google.cloud.run.v2.RevisionScaling.maxInstanceCount writable optional int32
+google.cloud.run.v2.RevisionScaling.minInstanceCount writable optional int32
+google.cloud.run.v2.RevisionTemplate.annotations writable map
+google.cloud.run.v2.RevisionTemplate.containers writable repeated message
+google.cloud.run.v2.RevisionTemplate.encryptionKey writable optional string
+google.cloud.run.v2.RevisionTemplate.encryptionKeyRevocationAction writable optional enum enum=ENCRYPTION_KEY_REVOCATION_ACTION_UNSPECIFIED,PREVENT_NEW,SHUTDOWN
+google.cloud.run.v2.RevisionTemplate.encryptionKeyShutdownDuration writable optional message
+google.cloud.run.v2.RevisionTemplate.executionEnvironment writable optional enum enum=EXECUTION_ENVIRONMENT_UNSPECIFIED,EXECUTION_ENVIRONMENT_GEN1,EXECUTION_ENVIRONMENT_GEN2
+google.cloud.run.v2.RevisionTemplate.gpuZonalRedundancyDisabled writable optional bool
+google.cloud.run.v2.RevisionTemplate.healthCheckDisabled writable optional bool
+google.cloud.run.v2.RevisionTemplate.labels writable map
+google.cloud.run.v2.RevisionTemplate.maxInstanceRequestConcurrency writable optional int32
+google.cloud.run.v2.RevisionTemplate.nodeSelector writable optional message
+google.cloud.run.v2.RevisionTemplate.revision writable optional string
+google.cloud.run.v2.RevisionTemplate.scaling writable optional message
+google.cloud.run.v2.RevisionTemplate.serviceAccount writable optional string
+google.cloud.run.v2.RevisionTemplate.serviceMesh writable optional message
+google.cloud.run.v2.RevisionTemplate.sessionAffinity writable optional bool
+google.cloud.run.v2.RevisionTemplate.timeout writable optional message
+google.cloud.run.v2.RevisionTemplate.volumes writable repeated message
+google.cloud.run.v2.RevisionTemplate.vpcAccess writable optional message
+google.cloud.run.v2.SecretKeySelector.secret required optional string
+google.cloud.run.v2.SecretKeySelector.version writable optional string
+google.cloud.run.v2.SecretVolumeSource.defaultMode writable optional int32
+google.cloud.run.v2.SecretVolumeSource.items writable repeated message
+google.cloud.run.v2.SecretVolumeSource.secret required optional string
+google.cloud.run.v2.Service.MultiRegionSettings.multiRegionId writable optional string
+google.cloud.run.v2.Service.MultiRegionSettings.regions required repeated string
+google.cloud.run.v2.Service.annotations writable map
+google.cloud.run.v2.Service.binaryAuthorization writable optional message
+google.cloud.run.v2.Service.buildConfig writable optional message
+google.cloud.run.v2.Service.client writable optional string
+google.cloud.run.v2.Service.clientVersion writable optional string
+google.cloud.run.v2.Service.conditions output-only repeated message
+google.cloud.run.v2.Service.createTime output-only optional message
+google.cloud.run.v2.Service.creator output-only optional string
+google.cloud.run.v2.Service.customAudiences writable repeated string
+google.cloud.run.v2.Service.defaultUriDisabled writable optional bool
+google.cloud.run.v2.Service.deleteTime output-only optional message
+google.cloud.run.v2.Service.description writable optional string
+google.cloud.run.v2.Service.etag writable optional string
+google.cloud.run.v2.Service.expireTime output-only optional message
+google.cloud.run.v2.Service.generation output-only optional int64
+google.cloud.run.v2.Service.iapEnabled writable optional bool
+google.cloud.run.v2.Service.ingress writable optional enum enum=INGRESS_TRAFFIC_UNSPECIFIED,INGRESS_TRAFFIC_ALL,INGRESS_TRAFFIC_INTERNAL_ONLY,INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER,INGRESS_TRAFFIC_NONE
+google.cloud.run.v2.Service.invokerIamDisabled writable optional bool
+google.cloud.run.v2.Service.labels writable map
+google.cloud.run.v2.Service.lastModifier output-only optional string
+google.cloud.run.v2.Service.latestCreatedRevision output-only optional string
+google.cloud.run.v2.Service.latestReadyRevision output-only optional string
+google.cloud.run.v2.Service.launchStage writable optional enum enum=LAUNCH_STAGE_UNSPECIFIED,UNIMPLEMENTED,PRELAUNCH,EARLY_ACCESS,ALPHA,BETA,GA,DEPRECATED
+google.cloud.run.v2.Service.multiRegionSettings writable optional message
+google.cloud.run.v2.Service.name writable optional string
+google.cloud.run.v2.Service.observedGeneration output-only optional int64
+google.cloud.run.v2.Service.reconciling output-only optional bool
+google.cloud.run.v2.Service.satisfiesPzs output-only optional bool
+google.cloud.run.v2.Service.scaling writable optional message
+google.cloud.run.v2.Service.template required optional message
+google.cloud.run.v2.Service.terminalCondition output-only optional message
+google.cloud.run.v2.Service.threatDetectionEnabled output-only optional bool
+google.cloud.run.v2.Service.traffic writable repeated message
+google.cloud.run.v2.Service.trafficStatuses output-only repeated message
+google.cloud.run.v2.Service.uid output-only optional string
+google.cloud.run.v2.Service.updateTime output-only optional message
+google.cloud.run.v2.Service.uri output-only optional string
+google.cloud.run.v2.Service.urls output-only repeated string
+google.cloud.run.v2.ServiceMesh.mesh writable optional string
+google.cloud.run.v2.ServiceScaling.manualInstanceCount writable optional int32
+google.cloud.run.v2.ServiceScaling.maxInstanceCount writable optional int32
+google.cloud.run.v2.ServiceScaling.minInstanceCount writable optional int32
+google.cloud.run.v2.ServiceScaling.scalingMode writable optional enum enum=SCALING_MODE_UNSPECIFIED,AUTOMATIC,MANUAL
+google.cloud.run.v2.SourceCode.CloudStorageSource.bucket required optional string
+google.cloud.run.v2.SourceCode.CloudStorageSource.generation writable optional int64
+google.cloud.run.v2.SourceCode.CloudStorageSource.object required optional string
+google.cloud.run.v2.SourceCode.cloudStorageSource writable optional message oneof=source_type
+google.cloud.run.v2.TCPSocketAction.port writable optional int32
+google.cloud.run.v2.TaskTemplate.containers writable repeated message
+google.cloud.run.v2.TaskTemplate.encryptionKey writable optional string
+google.cloud.run.v2.TaskTemplate.executionEnvironment writable optional enum enum=EXECUTION_ENVIRONMENT_UNSPECIFIED,EXECUTION_ENVIRONMENT_GEN1,EXECUTION_ENVIRONMENT_GEN2
+google.cloud.run.v2.TaskTemplate.gpuZonalRedundancyDisabled writable optional bool
+google.cloud.run.v2.TaskTemplate.maxRetries writable optional int32 oneof=retries
+google.cloud.run.v2.TaskTemplate.nodeSelector writable optional message
+google.cloud.run.v2.TaskTemplate.serviceAccount writable optional string
+google.cloud.run.v2.TaskTemplate.timeout writable optional message
+google.cloud.run.v2.TaskTemplate.volumes writable repeated message
+google.cloud.run.v2.TaskTemplate.vpcAccess writable optional message
+google.cloud.run.v2.TrafficTarget.percent writable optional int32
+google.cloud.run.v2.TrafficTarget.revision writable optional string
+google.cloud.run.v2.TrafficTarget.tag writable optional string
+google.cloud.run.v2.TrafficTarget.type writable optional enum enum=TRAFFIC_TARGET_ALLOCATION_TYPE_UNSPECIFIED,TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST,TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION
+google.cloud.run.v2.VersionToPath.mode writable optional int32
+google.cloud.run.v2.VersionToPath.path required optional string
+google.cloud.run.v2.VersionToPath.version writable optional string
+google.cloud.run.v2.Volume.cloudSqlInstance writable optional message oneof=volume_type
+google.cloud.run.v2.Volume.emptyDir writable optional message oneof=volume_type
+google.cloud.run.v2.Volume.gcs writable optional message oneof=volume_type
+google.cloud.run.v2.Volume.name required optional string
+google.cloud.run.v2.Volume.nfs writable optional message oneof=volume_type
+google.cloud.run.v2.Volume.secret writable optional message oneof=volume_type
+google.cloud.run.v2.VolumeMount.mountPath required optional string
+google.cloud.run.v2.VolumeMount.name required optional string
+google.cloud.run.v2.VolumeMount.subPath writable optional string
+google.cloud.run.v2.VpcAccess.NetworkInterface.network writable optional string
+google.cloud.run.v2.VpcAccess.NetworkInterface.subnetwork writable optional string
+google.cloud.run.v2.VpcAccess.NetworkInterface.tags writable repeated string
+google.cloud.run.v2.VpcAccess.connector writable optional string
+google.cloud.run.v2.VpcAccess.egress writable optional enum enum=VPC_EGRESS_UNSPECIFIED,ALL_TRAFFIC,PRIVATE_RANGES_ONLY
+google.cloud.run.v2.VpcAccess.networkInterfaces writable repeated message
+google.cloud.run.v2.WorkerPool.annotations writable map
+google.cloud.run.v2.WorkerPool.binaryAuthorization writable optional message
+google.cloud.run.v2.WorkerPool.client writable optional string
+google.cloud.run.v2.WorkerPool.clientVersion writable optional string
+google.cloud.run.v2.WorkerPool.conditions output-only repeated message
+google.cloud.run.v2.WorkerPool.createTime output-only optional message
+google.cloud.run.v2.WorkerPool.creator output-only optional string
+google.cloud.run.v2.WorkerPool.customAudiences writable repeated string
+google.cloud.run.v2.WorkerPool.deleteTime output-only optional message
+google.cloud.run.v2.WorkerPool.description writable optional string
+google.cloud.run.v2.WorkerPool.etag writable optional string
+google.cloud.run.v2.WorkerPool.expireTime output-only optional message
+google.cloud.run.v2.WorkerPool.generation output-only optional int64
+google.cloud.run.v2.WorkerPool.instanceSplitStatuses output-only repeated message
+google.cloud.run.v2.WorkerPool.instanceSplits writable repeated message
+google.cloud.run.v2.WorkerPool.labels writable map
+google.cloud.run.v2.WorkerPool.lastModifier output-only optional string
+google.cloud.run.v2.WorkerPool.latestCreatedRevision output-only optional string
+google.cloud.run.v2.WorkerPool.latestReadyRevision output-only optional string
+google.cloud.run.v2.WorkerPool.launchStage writable optional enum enum=LAUNCH_STAGE_UNSPECIFIED,UNIMPLEMENTED,PRELAUNCH,EARLY_ACCESS,ALPHA,BETA,GA,DEPRECATED
+google.cloud.run.v2.WorkerPool.name writable optional string
+google.cloud.run.v2.WorkerPool.observedGeneration output-only optional int64
+google.cloud.run.v2.WorkerPool.reconciling output-only optional bool
+google.cloud.run.v2.WorkerPool.satisfiesPzs output-only optional bool
+google.cloud.run.v2.WorkerPool.scaling writable optional message
+google.cloud.run.v2.WorkerPool.template required optional message
+google.cloud.run.v2.WorkerPool.terminalCondition output-only optional message
+google.cloud.run.v2.WorkerPool.threatDetectionEnabled output-only optional bool
+google.cloud.run.v2.WorkerPool.uid output-only optional string
+google.cloud.run.v2.WorkerPool.updateTime output-only optional message
+google.cloud.run.v2.WorkerPoolRevisionTemplate.annotations writable map
+google.cloud.run.v2.WorkerPoolRevisionTemplate.containers writable repeated message
+google.cloud.run.v2.WorkerPoolRevisionTemplate.encryptionKey writable optional string
+google.cloud.run.v2.WorkerPoolRevisionTemplate.encryptionKeyRevocationAction writable optional enum enum=ENCRYPTION_KEY_REVOCATION_ACTION_UNSPECIFIED,PREVENT_NEW,SHUTDOWN
+google.cloud.run.v2.WorkerPoolRevisionTemplate.encryptionKeyShutdownDuration writable optional message
+google.cloud.run.v2.WorkerPoolRevisionTemplate.gpuZonalRedundancyDisabled writable optional bool
+google.cloud.run.v2.WorkerPoolRevisionTemplate.labels writable map
+google.cloud.run.v2.WorkerPoolRevisionTemplate.nodeSelector writable optional message
+google.cloud.run.v2.WorkerPoolRevisionTemplate.revision writable optional string
+google.cloud.run.v2.WorkerPoolRevisionTemplate.serviceAccount writable optional string
+google.cloud.run.v2.WorkerPoolRevisionTemplate.serviceMesh writable optional message
+google.cloud.run.v2.WorkerPoolRevisionTemplate.volumes writable repeated message
+google.cloud.run.v2.WorkerPoolRevisionTemplate.vpcAccess writable optional message
+google.cloud.run.v2.WorkerPoolScaling.manualInstanceCount writable optional int32

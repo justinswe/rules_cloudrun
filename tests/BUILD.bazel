@@ -1,164 +1,207 @@
-load("//:defs.bzl", "cloudrun_service")
-load("//tests:utils.bzl", "cloudrun_deploy_script_test", "cloudrun_manifest_test", "cloudrun_validation_test")
+load("@rules_go//go:def.bzl", "go_test")
+load("//:defs.bzl", "cloudrun_deploy", "cloudrun_render", "generate_manifest")
+load("//docs/examples:fixtures.bzl", "example_image", "example_index")
+load(":analysis_test.bzl", "deploy_test", "environment_name_test", "invalid_image_analysis_test", "invalid_runtime_image_test", "render_analysis_test", "runtime_image_test")
 
-# ─── Golden file tests for cloudrun_service rule ─────────────────────────────
+# ─── Golden and README tests for generate_manifest ──────────────────────────
+# Each -golden pairs a rendered manifest with its reviewed golden; JSON values,
+# scalar types, and array order must match. README YAML blocks must equal the
+# readme_* configurations in order.
 
-cloudrun_manifest_test(
-    name = "test_service_single_env_manifest",
-    expected = "//tests/fixtures/service:expected_single_env.yaml",
-    render_target = "//docs/examples:example_service.render",
-)
-
-cloudrun_manifest_test(
-    name = "test_service_multi_env_dev_manifest",
-    expected = "//tests/fixtures/service:expected_multi_env_dev.yaml",
-    render_target = "//docs/examples:example_multi_env_dev.render",
-)
-
-cloudrun_manifest_test(
-    name = "test_service_multi_env_prd_manifest",
-    expected = "//tests/fixtures/service:expected_multi_env_prd.yaml",
-    render_target = "//docs/examples:example_multi_env_prd.render",
-)
-
-cloudrun_manifest_test(
-    name = "test_service_digest_pinned_manifest",
-    expected = "//tests/fixtures/service:expected_digest_pinned.yaml",
-    render_target = "//docs/examples:example_digest_pinned_service.render",
-)
-
-cloudrun_manifest_test(
-    name = "test_service_runtime_override_placeholder_manifest",
-    expected = "//tests/fixtures/service:expected_runtime_override_placeholder.yaml",
-    render_target = "//docs/examples:example_runtime_override_service.render",
-)
-
-cloudrun_manifest_test(
-    name = "test_job_digest_pinned_manifest",
-    expected = "//tests/fixtures/job:expected_digest_pinned.yaml",
-    render_target = "//docs/examples:example_digest_pinned_job.render",
-)
-
-cloudrun_manifest_test(
-    name = "test_worker_digest_pinned_manifest",
-    expected = "//tests/fixtures/worker:expected_digest_pinned.yaml",
-    render_target = "//docs/examples:example_digest_pinned_worker.render",
-)
-
-# ─── Deploy script tests ─────────────────────────────────────────────────────
-# Verify the assembled deploy scripts contain the correct build-time constants,
-# embedded manifest content, and gcloud command — with no runtime rlocation.
-
-cloudrun_deploy_script_test(
-    name = "test_service_deploy_script",
-    deploy_target = "//docs/examples:example_service.deploy",
-    expected_substrings = [
-        'GCLOUD_TRACK="beta"',
-        'GCLOUD_SUBCMD="services"',
-        'RESOURCE_TYPE="service"',
-        'SERVICE_NAME="myapp"',
-        'REGION_FLAG="--region=us-central1"',
-        'replace "$MANIFEST"',
-        "exec \"$GCLOUD_BIN\"",
-        "CLOUDRUN_MANIFEST_EOF",
-        "serving.knative.dev/v1",
+go_test(
+    name = "tests_test",
+    srcs = ["golden_test.go"],
+    args = [
+        "-golden=$(rlocationpath //docs/examples:example_service.render),$(rlocationpath //tests/fixtures/service:expected_single_env.json)",
+        "-golden=$(rlocationpath //docs/examples:example_multi_env_dev_dev.render),$(rlocationpath //tests/fixtures/service:expected_multi_env_dev.json)",
+        "-golden=$(rlocationpath //docs/examples:example_multi_env_prd_prd.render),$(rlocationpath //tests/fixtures/service:expected_multi_env_prd.json)",
+        "-golden=$(rlocationpath //docs/examples:example_digest_pinned_service.render),$(rlocationpath //tests/fixtures/service:expected_digest_pinned.json)",
+        "-golden=$(rlocationpath //docs/examples:example_runtime_override_service.render),$(rlocationpath //tests/fixtures/service:expected_runtime_override_placeholder.json)",
+        "-golden=$(rlocationpath //docs/examples:example_digest_pinned_job.render),$(rlocationpath //tests/fixtures/job:expected_digest_pinned.json)",
+        "-golden=$(rlocationpath //docs/examples:example_digest_pinned_worker.render),$(rlocationpath //tests/fixtures/worker:expected_digest_pinned.json)",
+        "-golden=$(rlocationpath :example_empty_overlay_empty.render),$(rlocationpath //tests/fixtures/service:expected_single_env.json)",
+        "-golden=$(rlocationpath :example_fractional_cpu.render),$(rlocationpath //tests/fixtures/service:expected_fractional_cpu.json)",
+        "-readme=$(rlocationpath //:README.md)",
+        "-readme_config=$(rlocationpath //docs/examples:readme_service.yaml)",
+        "-readme_config=$(rlocationpath //docs/examples:readme_job.yaml)",
+        "-readme_config=$(rlocationpath //docs/examples:readme_worker.yaml)",
     ],
-    unexpected_substrings = [
-        "rlocation",
-        "runfiles.bash",
-        "RUNFILES_DIR",
-        "cloudrun_deployer",
-        "bazel run",
+    data = [
+        ":example_empty_overlay_empty.render",
+        ":example_fractional_cpu.render",
+        "//:README.md",
+        "//docs/examples:example_digest_pinned_job.render",
+        "//docs/examples:example_digest_pinned_service.render",
+        "//docs/examples:example_digest_pinned_worker.render",
+        "//docs/examples:example_multi_env_dev_dev.render",
+        "//docs/examples:example_multi_env_prd_prd.render",
+        "//docs/examples:example_runtime_override_service.render",
+        "//docs/examples:example_service.render",
+        "//docs/examples:readme_job.render",
+        "//docs/examples:readme_job.yaml",
+        "//docs/examples:readme_service.render",
+        "//docs/examples:readme_service.yaml",
+        "//docs/examples:readme_worker.render",
+        "//docs/examples:readme_worker.yaml",
+        "//tests/fixtures/job:expected_digest_pinned.json",
+        "//tests/fixtures/service:expected_digest_pinned.json",
+        "//tests/fixtures/service:expected_fractional_cpu.json",
+        "//tests/fixtures/service:expected_multi_env_dev.json",
+        "//tests/fixtures/service:expected_multi_env_prd.json",
+        "//tests/fixtures/service:expected_runtime_override_placeholder.json",
+        "//tests/fixtures/service:expected_single_env.json",
+        "//tests/fixtures/worker:expected_digest_pinned.json",
+    ],
+    deps = [
+        "@com_github_justinswe_std//errors",
+        "@com_github_stretchr_testify//require",
+        "@rules_go//go/runfiles",
     ],
 )
 
-cloudrun_deploy_script_test(
-    name = "test_digest_pinned_deploy_script",
-    deploy_target = "//docs/examples:example_digest_pinned_service.deploy",
-    expected_substrings = [
-        "PUSH_RUNFILE=",
-        'GCLOUD_SUBCMD="services"',
-        "exec \"$GCLOUD_BIN\"",
-        "us-central1-docker.pkg.dev/lavndr-ai/lavndr-ai/myapp@sha256:",
-    ],
-    unexpected_substrings = [
-        "rlocation",
-        "runfiles.bash",
-        "cloudrun_deployer",
-    ],
-)
-
-cloudrun_deploy_script_test(
-    name = "test_runtime_override_deploy_script",
-    deploy_target = "//docs/examples:example_runtime_override_service.deploy",
-    expected_substrings = [
-        'PUSH_RUNFILE=""',
-        "rules-cloudrun.invalid/override-required:latest",
-        "exec \"$GCLOUD_BIN\"",
-    ],
-    unexpected_substrings = [
-        "rlocation",
-        "cloudrun_deployer",
-    ],
-)
-
-cloudrun_deploy_script_test(
-    name = "test_job_deploy_script",
-    deploy_target = "//docs/examples:example_digest_pinned_job.deploy",
-    expected_substrings = [
-        'GCLOUD_TRACK="beta"',
-        'GCLOUD_SUBCMD="jobs"',
-        'RESOURCE_TYPE="job"',
-        "run.googleapis.com/v1",
-        "exec \"$GCLOUD_BIN\"",
-    ],
-    unexpected_substrings = [
-        "rlocation",
-        "cloudrun_deployer",
-    ],
-)
-
-cloudrun_deploy_script_test(
-    name = "test_worker_deploy_script",
-    deploy_target = "//docs/examples:example_digest_pinned_worker.deploy",
-    expected_substrings = [
-        'GCLOUD_TRACK="beta"',
-        'GCLOUD_SUBCMD="worker-pools"',
-        'RESOURCE_TYPE="worker"',
-        "CLOUDSDK_RUN_REGION",
-        'replace "$MANIFEST"',
-        '"$GCLOUD_BIN" components install',
-        "exec \"$GCLOUD_BIN\"",
-    ],
-    unexpected_substrings = [
-        "rlocation",
-        "cloudrun_deployer",
-    ],
-)
-
-# ─── Validation failure tests ────────────────────────────────────────────────
-
-cloudrun_validation_test(
-    name = "test_validation_invalid_config",
-    config = "//tests/fixtures/invalid:invalid_config.yaml",
-    expected_errors = [
-        "Unknown top-level key 'unknownKey'",
-        "has both 'value' and 'secret'",
-    ],
-)
-
-cloudrun_service(
+generate_manifest(
     name = "example_empty_overlay",
-    base_config = "//docs/examples:apphosting.yaml",
-    config_format = "apphosting.*.yaml",
-    configs = ["//tests/fixtures/service:apphosting.empty.yaml"],
+    base_config = "//docs/examples:manifest.yaml",
+    config_format = "manifest.*.yaml",
+    configs = ["//tests/fixtures/service:manifest.empty.yaml"],
     image = "gcr.io/my-project/myapp:latest",
-    region = "us-central1",
-    service_name = "myapp",
+    image_target = None,
+    resource_name = "myapp",
+    resource_type = "service",
 )
 
-cloudrun_manifest_test(
-    name = "test_service_empty_overlay_manifest",
-    expected = "//tests/fixtures/service:expected_single_env.yaml",
-    render_target = ":example_empty_overlay_empty.render",
+generate_manifest(
+    name = "example_fractional_cpu",
+    config = "//tests/fixtures/service:manifest.fractional.yaml",
+    image = "gcr.io/my-project/myapp:latest",
+    image_target = None,
+    resource_name = "myapp",
+    resource_type = "service",
+)
+
+generate_manifest(
+    name = "literal_argument_subject",
+    config = "//docs/examples:manifest.yaml",
+    image = "example.com/app:literal$VALUE",
+    image_container = "app",
+    resource_name = "app",
+    tags = ["manual"],
+)
+
+render_analysis_test(
+    name = "render_analysis_test",
+    target_under_test = ":literal_argument_subject.render",
+)
+
+cloudrun_render(
+    name = "invalid_image_subject",
+    config = "//docs/examples:manifest.yaml",
+    image_repo = "example.com/app",
+    service_name = "app",
+    tags = ["manual"],
+)
+
+invalid_image_analysis_test(
+    name = "invalid_image_analysis_test",
+    target_under_test = ":invalid_image_subject",
+)
+
+environment_name_test(name = "environment_name_test")
+
+example_image(name = "linux_image")
+
+example_image(
+    name = "arm_image",
+    architecture = "arm64",
+)
+
+example_index(
+    name = "multiarch_image",
+    images = [
+        ":arm_image",
+        ":linux_image",
+    ],
+)
+
+example_index(
+    name = "unsupported_index",
+    images = [":arm_image"],
+)
+
+cloudrun_render(
+    name = "multiarch_subject",
+    config = "//docs/examples:manifest.yaml",
+    image = "example.com/app:latest",
+    image_target = ":multiarch_image",
+    service_name = "app",
+)
+
+runtime_image_test(
+    name = "multiarch_image_test",
+    target_under_test = ":multiarch_subject",
+)
+
+filegroup(name = "not_an_image")
+
+[cloudrun_render(
+    name = name + "_subject",
+    config = "//docs/examples:manifest.yaml",
+    image_target = target,
+    service_name = "app",
+    tags = ["manual"],
+) for name, target in [
+    ("unsupported_image", ":arm_image"),
+    ("unsupported_index", ":unsupported_index"),
+    ("missing_image_provider", ":not_an_image"),
+]]
+
+[invalid_runtime_image_test(
+    name = name + "_test",
+    message = message,
+    target_under_test = ":" + name + "_subject",
+) for name, message in [
+    ("unsupported_image", "exactly one Linux amd64"),
+    ("unsupported_index", "exactly one Linux amd64"),
+    ("missing_image_provider", "must provide rules_img"),
+]]
+
+# ─── cloudrun_deploy ─────────────────────────────────────────────────────────
+
+deploy_test(
+    name = "deploy_defaults_test",
+    expected_args = [
+        "--project=my-project",
+        "--name=web",
+        "--kind=service",
+        "--image-container=app",
+        "--region=us-west1",
+        "--label=team=web",
+    ],
+    manifest = "docs/examples/readme_service.render.json",
+    target_under_test = "//docs/examples:example_deploy",
+)
+
+cloudrun_deploy(
+    name = "deploy_override_subject",
+    kind = "workerpool",
+    manifest = "//docs/examples:readme_worker.render",
+    project = "p",
+    regions = [
+        "us-west1",
+        "us-central1",
+    ],
+    resource_name = "other",
+    tags = ["manual"],
+)
+
+deploy_test(
+    name = "deploy_override_test",
+    expected_args = [
+        "--name=other",
+        "--kind=workerpool",
+        "--region=us-west1",
+        "--region=us-central1",
+    ],
+    manifest = "docs/examples/readme_worker.render.json",
+    target_under_test = ":deploy_override_subject",
 )

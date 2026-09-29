@@ -1,0 +1,17 @@
+template:
+  taskCount: 1
+  parallelism: 1
+  template:
+    maxRetries: 3
+    timeout: 600s
+    containers:
+      - name: app
+        resources:
+          limits:
+            cpu: "1"
+            memory: 512Mi
+    vpcAccess:
+      networkInterfaces:
+        - network: my-vpc
+          subnetwork: my-subnet
+      egress: ALL_TRAFFIC

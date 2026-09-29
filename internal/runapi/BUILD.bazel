@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "runapi",
+    srcs = ["runapi.go"],
+    importpath = "github.com/justinswe/rules_cloudrun/internal/runapi",
+    visibility = [
+        "//cmd/cloudrun-deploy:__pkg__",
+        "//internal/deploy:__pkg__",
+    ],  # Keeps the API client off the render path.
+    deps = [
+        "//internal/manifest",
+        "@com_github_justinswe_std//errors",
+        "@com_github_justinswe_std//retry",
+    ],
+)
+
+go_test(
+    name = "runapi_test",
+    srcs = ["runapi_test.go"],
+    embed = [":runapi"],
+    deps = [
+        "//internal/manifest",
+        "@com_github_justinswe_std//errors",
+        "@com_github_stretchr_testify//require",
+    ],
+)

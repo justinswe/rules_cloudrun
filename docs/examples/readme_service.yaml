@@ -1,0 +1,18 @@
+ingress: INGRESS_TRAFFIC_ALL
+scaling:
+  maxInstanceCount: 3
+template:
+  timeout: 300s
+  containers:
+    - name: app
+      resources:
+        limits: { cpu: '1', memory: 512Mi }
+        cpuIdle: true
+      env:
+        - name: LOG_LEVEL
+          value: info
+        - name: API_KEY
+          valueSource:
+            secretKeyRef:
+              secret: projects/my-project/secrets/API_KEY
+              version: '3'

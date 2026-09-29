@@ -1,0 +1,18 @@
+template:
+  timeout: 300s
+  executionEnvironment: EXECUTION_ENVIRONMENT_GEN1
+  maxInstanceRequestConcurrency: 1
+  containers:
+    - name: app
+      resources:
+        limits:
+          cpu: "0.5"
+          memory: 512Mi
+        cpuIdle: true
+      env:
+        - name: LOG_LEVEL
+          value: info
+ingress: INGRESS_TRAFFIC_ALL
+scaling:
+  minInstanceCount: 0
+  maxInstanceCount: 3

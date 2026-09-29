@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "cloudrun-deploy_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/justinswe/rules_cloudrun/cmd/cloudrun-deploy",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//internal/deploy",
+        "//internal/runapi",
+        "@com_github_justinswe_std//app",
+        "@com_github_justinswe_std//errors",
+        "@com_github_spf13_cobra//:cobra",
+        "@org_golang_x_oauth2//google",
+    ],
+)
+
+go_binary(
+    name = "cloudrun-deploy",
+    embed = [":cloudrun-deploy_lib"],
+    visibility = ["//visibility:public"],
+)

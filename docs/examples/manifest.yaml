@@ -1,0 +1,20 @@
+template:
+  timeout: 300s
+  executionEnvironment: EXECUTION_ENVIRONMENT_GEN2
+  maxInstanceRequestConcurrency: 1000
+  containers:
+    - name: app
+      resources:
+        limits:
+          cpu: "1"
+          memory: 512Mi
+        cpuIdle: true
+      env:
+        - name: DATABASE_URL
+          value: postgresql://localhost:5432/myapp
+        - name: LOG_LEVEL
+          value: info
+ingress: INGRESS_TRAFFIC_ALL
+scaling:
+  minInstanceCount: 0
+  maxInstanceCount: 3

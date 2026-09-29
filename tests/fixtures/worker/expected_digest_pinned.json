@@ -1,0 +1,47 @@
+{
+  "instanceSplits": [
+    {
+      "percent": 100,
+      "type": "INSTANCE_SPLIT_ALLOCATION_TYPE_LATEST"
+    }
+  ],
+  "launchStage": "BETA",
+  "scaling": {
+    "manualInstanceCount": 0
+  },
+  "template": {
+    "containers": [
+      {
+        "env": [
+          {
+            "name": "ENVIRONMENT",
+            "value": "development"
+          }
+        ],
+        "image": "us-central1-docker.pkg.dev/my-project/my-repo/myworker@sha256:46e099f6d3eab8fc3246ad867aace15a5503a4cf6c7c54f2ffac5c28ea1facad",
+        "name": "app",
+        "resources": {
+          "limits": {
+            "cpu": "1",
+            "memory": "512Mi"
+          }
+        },
+        "volumeMounts": [
+          {
+            "mountPath": "/tmp",
+            "name": "worker-tmp"
+          }
+        ]
+      }
+    ],
+    "volumes": [
+      {
+        "emptyDir": {
+          "medium": "MEMORY",
+          "sizeLimit": "256Mi"
+        },
+        "name": "worker-tmp"
+      }
+    ]
+  }
+}

@@ -1,4 +1,4 @@
 exports_files(
-    glob(["**/*.yaml"]),
-    visibility = ["//tests:__pkg__"],
+    glob(["*.json"]),
+    visibility = ["//visibility:public"],
 )

@@ -1,0 +1,7 @@
+template:
+  taskCount: 1
+  template:
+    timeout: 600s
+    maxRetries: 3
+    containers:
+      - name: app

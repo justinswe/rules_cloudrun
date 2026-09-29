@@ -1,9 +1,11 @@
-"""Public API for rules_cloudrun."""
+"""Public API for Cloud Run v2 manifests and their optional direct deployment."""
 
-load("//cloudrun:service.bzl", _cloudrun_service = "cloudrun_service")
-load("//cloudrun:job.bzl", _cloudrun_job = "cloudrun_job")
-load("//cloudrun:worker.bzl", _cloudrun_worker = "cloudrun_worker")
+load("//rules:deploy.bzl", _cloudrun_deploy = "cloudrun_deploy")
+load("//rules:manifest.bzl", _cloudrun_render = "cloudrun_render", _extract_env_name = "extract_env_name", _generate_manifest = "generate_manifest")
+load("//rules:providers.bzl", _CloudRunManifestInfo = "CloudRunManifestInfo")
 
-cloudrun_service = _cloudrun_service
-cloudrun_job = _cloudrun_job
-cloudrun_worker = _cloudrun_worker
+CloudRunManifestInfo = _CloudRunManifestInfo
+cloudrun_deploy = _cloudrun_deploy
+cloudrun_render = _cloudrun_render
+extract_env_name = _extract_env_name
+generate_manifest = _generate_manifest

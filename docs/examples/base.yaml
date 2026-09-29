@@ -1,0 +1,8 @@
+template:
+  timeout: 300s
+  executionEnvironment: EXECUTION_ENVIRONMENT_GEN2
+  maxInstanceRequestConcurrency: 1000
+ingress: INGRESS_TRAFFIC_ALL
+scaling:
+  minInstanceCount: 0
+  maxInstanceCount: 3

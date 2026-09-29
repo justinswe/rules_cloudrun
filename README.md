@@ -1,372 +1,248 @@
 # rules_cloudrun
 
-Declarative Bazel rules for deploying applications to Google Cloud Run. Generates [Knative Service manifests](https://cloud.google.com/run/docs/reference/rest/v2/projects.locations.services) from YAML configuration files and deploys them with `gcloud run services replace`.
+Bazel rules that render native [Cloud Run v2](https://cloud.google.com/run/docs/reference/rest/v2) request bodies for Services, Jobs, and WorkerPools, and validate them at build time.
 
-## Overview
+- `generate_manifest` turns YAML written in Cloud Run v2 field names into deterministic JSON. The build fails on invalid configuration.
+- Images are pinned by digest from a [rules_img](https://github.com/bazel-contrib/rules_img) image target.
+- `cloudrun_deploy` is optional. It applies a rendered manifest straight to the Cloud Run v2 API with `bazel run`. Rendering never depends on it.
 
-| Rule | Purpose |
-|------|---------|
-| `cloudrun_service` | Generates Knative Service YAML manifests + deploy targets |
-| `cloudrun_job` | Generates Cloud Run Job manifests + deploy targets |
-| `cloudrun_worker` | Generates Worker Pool manifests + deploy targets |
+The rendered JSON is the Cloud Run v2 API resource body. Deployment pipelines such as Google Cloud Deploy, or your own CI, can use it with their own tooling.
 
-### How it works
+> **Upgrading from 1.x?** Version 2.0.0 replaces the knative YAML rules (`cloudrun_service`, `cloudrun_job`, and `cloudrun_worker`). See [docs/migration.md](docs/migration.md) and the [CHANGELOG](CHANGELOG.md).
 
-```
-apphosting.yaml + apphosting.dev.yaml
-       │
-       ▼
-  ┌─────────────────┐     ┌──────────────────┐
-  │ Validate config  │ ──▶ │ Generate manifest │
-  └─────────────────┘     └──────────────────┘
-                                   │
-                         ┌─────────┴─────────┐
-                         ▼                   ▼
-                  myapp_dev.render     myapp_dev.deploy
-                  (Knative YAML)       (gcloud replace)
-```
+## Install
 
-1. **Validate** — Strict schema validation at build time (catches typos, bad ranges, missing fields)
-2. **Render** — Produces manifests via a typed Go resource renderer (Knative API types for services)
-3. **Deploy** — Runs `gcloud run services replace <manifest>` against the target project
-
-## Quick Start
-
-### 1. Add to MODULE.bazel
+Add the module to `MODULE.bazel`. It is not in the Bazel Central Registry, so pin it to the release tag with an override.
 
 ```starlark
+bazel_dep(name = "rules_cloudrun", version = "2.0.0")
 git_override(
     module_name = "rules_cloudrun",
     remote = "https://github.com/justinswe/rules_cloudrun.git",
-    commit = "RELEASE_SHA",
+    tag = "v2.0.0",
 )
+
+# For digest-pinned images built with rules_img.
+bazel_dep(name = "rules_img", version = "0.3.13")
 ```
 
-### 2. Define a service
+`archive_override` works as well. Add an `integrity` value for the archive.
 
 ```starlark
-load("@rules_cloudrun//:defs.bzl", "cloudrun_service")
-
-cloudrun_service(
-    name = "myapp",
-    service_name = "myapp",
-    image = "gcr.io/my-project/myapp:latest",
-    region = "us-central1",
-    config = ":apphosting.yaml",
+archive_override(
+    module_name = "rules_cloudrun",
+    strip_prefix = "rules_cloudrun-2.0.0",
+    urls = ["https://github.com/justinswe/rules_cloudrun/archive/refs/tags/v2.0.0.tar.gz"],
 )
 ```
 
-### 3. Build and deploy
+Rendering and validation run entirely inside Bazel and need no credentials or network access.
 
-```bash
-# Render the Knative manifest
-bazel build //:myapp.render
+## Quick start
 
-# Deploy to Cloud Run
-bazel run //:myapp.deploy
+### Service
+
+`manifest.yaml` is a Cloud Run v2 `Service` body, minus the name and anything Cloud Run sets itself:
+
+```yaml
+ingress: INGRESS_TRAFFIC_ALL
+scaling:
+  maxInstanceCount: 3
+template:
+  timeout: 300s
+  containers:
+    - name: app
+      resources:
+        limits: { cpu: '1', memory: 512Mi }
+        cpuIdle: true
+      env:
+        - name: LOG_LEVEL
+          value: info
+        - name: API_KEY
+          valueSource:
+            secretKeyRef:
+              secret: projects/my-project/secrets/API_KEY
+              version: '3'
 ```
 
-### Digest-pinned image targets
-
-Use `image_repo` with an OCI image target to get deterministic `repo@sha256:...` manifests:
+`BUILD.bazel`, where `:image` is a rules_img `image_manifest` or `image_index` for `linux/amd64`:
 
 ```starlark
-cloudrun_service(
-    name = "myapp",
-    service_name = "myapp",
-    config = ":apphosting.yaml",
-    region = "us-central1",
-    image_repo = "us-central1-docker.pkg.dev/my-project/my-repo/myapp",
-    image_target = ":image",  # optional, defaults to :image
+load("@rules_cloudrun//:defs.bzl", "generate_manifest")
+
+generate_manifest(
+    name = "manifest",
+    config = "manifest.yaml",
+    image_container = "app",
+    image_repo = "us-west1-docker.pkg.dev/my-project/apps/web",
+    image_target = ":image",
+    resource_name = "web",
 )
 ```
 
-In image-target mode, rules derive `:image.push` and `:image.digest`, execute the push binary directly from runfiles (no nested `bazel run`), and render the manifest image as `image_repo@sha256:...`.
-This behavior is supported for `cloudrun_service`, `cloudrun_job`, and `cloudrun_worker`.
+Run `bazel build //web:manifest.render` to write `bazel-bin/web/manifest.render.json`. That file holds the `app` container's image as `us-west1-docker.pkg.dev/my-project/apps/web@sha256:...`, where the digest is read from the `digest` output group of `:image`.
 
-You can also override the image at deploy runtime for promotion workflows:
+### Jobs and worker pools
 
-```bash
-SKIP_PUSH=1 bazel run //:myapp_prd.deploy -- \
-  --image us-central1-docker.pkg.dev/lavndr-ai/lavndr-ai/lavndrapi@sha256:46e099f6d3eab8fc3246ad867aace15a5503a4cf6c7c54f2ffac5c28ea1facad
-```
-
-The runtime `--image` flag must be a fully qualified digest reference (`repo@sha256:...`).
-When provided, the deployer rewrites the manifest image in a temporary file and deploys that pinned image, which is useful for promoting a tested dev digest into prod without rebuilding.
-
-You may omit both `image` and `image_repo` in rule definitions when your workflow always provides `--image` at deploy time.
-In that mode, a deterministic placeholder image is rendered and expected to be overridden at runtime.
-
-## Multi-Environment Deployments
-
-The primary use case: deploy the same image to multiple environments with different resource, secret, and scaling configurations.
-
-### Configuration files
-
-**apphosting.yaml** — base (shared defaults):
-```yaml
-runConfig:
-  minInstances: 0
-  maxInstances: 3
-  concurrency: 1000
-  cpu: 1
-  memoryMiB: 512
-
-env:
-  - variable: LOG_LEVEL
-    value: info
-```
-
-**apphosting.dev.yaml** — dev overrides:
-```yaml
-runConfig:
-  maxInstances: 2
-
-env:
-  - variable: API_KEY
-    secret: projects/123456789/secrets/API_KEY
-  - variable: ENVIRONMENT
-    value: development
-
-serviceAccount: myapp-dev@my-project-dev.iam.gserviceaccount.com
-```
-
-**apphosting.prd.yaml** — production overrides:
-```yaml
-runConfig:
-  cpu: 2
-  memoryMiB: 2048
-  minInstances: 1
-  maxInstances: 10
-
-env:
-  - variable: API_KEY
-    secret: projects/987654321/secrets/API_KEY
-  - variable: ENVIRONMENT
-    value: production
-
-serviceAccount: myapp-prd@my-project-prd.iam.gserviceaccount.com
-cloudsqlConnector: my-project-prd:us-central1:myapp-db
-```
-
-### BUILD.bazel
-
-```starlark
-load("@rules_cloudrun//:defs.bzl", "cloudrun_service")
-
-cloudrun_service(
-    name = "myapp",
-    service_name = "myapp",
-    image = "gcr.io/my-project/myapp:latest",
-    region = "us-central1",
-    base_config = ":apphosting.yaml",
-    configs = [":apphosting.dev.yaml", ":apphosting.prd.yaml"],
-    project_id = "my-project-{}-00",
-)
-```
-
-### Generated targets
-
-| Target | Description |
-|--------|-------------|
-| `myapp_dev.render` | Build: generates Knative YAML for dev |
-| `myapp_dev.deploy` | Run: deploys to `my-project-dev-00` |
-| `myapp_prd.render` | Build: generates Knative YAML for prd |
-| `myapp_prd.deploy` | Run: deploys to `my-project-prd-00` |
-
-Environment names are auto-extracted from filenames: `apphosting.dev.yaml` → `dev`, `apphosting.prd.yaml` → `prd`.
-
-The `{}` placeholder in `project_id` is replaced with the environment name.
-
-### Deploy
-
-```bash
-bazel run //:myapp_dev.deploy
-bazel run //:myapp_prd.deploy
-
-# Pass extra gcloud flags at runtime
-bazel run //:myapp_prd.deploy -- --quiet
-```
-
-### Discover all deploy targets
-
-```bash
-bazel query 'attr(tags, cloudrun_deploy, //...)'
-```
-
----
-
-## Configuration Schema Reference
-
-The YAML configuration format is validated at build time. Invalid configurations **fail the build** with a detailed error message listing every violation.
-
-### Top-Level Keys
-
-| Key | Type | Description |
-|-----|------|-------------|
-| `runConfig` | object | Resource and scaling configuration |
-| `env` | list | Environment variables and secrets |
-| `serviceAccount` | string | IAM service account email |
-| `cloudsqlConnector` | string | Cloud SQL instance (`project:region:instance`) |
-
-Any other top-level key will fail validation.
-
-### `runConfig` (service)
-
-| Field | Type | Constraint | Default | Description |
-|-------|------|-----------|---------|-------------|
-| `cpu` | int | `1`, `2`, `4`, or `8` | `1` | vCPU allocation |
-| `memoryMiB` | int | `128` – `32768` | `512` | Memory in MiB |
-| `minInstances` | int | ≥ 0 | `0` | Minimum instances |
-| `maxInstances` | int | ≥ 1 | `3` | Maximum instances |
-| `concurrency` | int | ≥ 1 | `1000` | Requests per instance |
-| `network` | string | — | — | VPC network name |
-| `subnet` | string | — | — | VPC subnet (requires `network`) |
-| `vpcConnector` | string | — | — | Serverless VPC connector |
-| `vpcEgress` | string | — | — | VPC egress setting |
-| `livenessProbe` | object | — | — | [Cloud Run liveness probe](https://cloud.google.com/run/docs/configuring/healthchecks) |
-| `readinessProbe` | object | — | — | [Cloud Run readiness probe](https://cloud.google.com/run/docs/configuring/healthchecks) |
-| `startupProbe` | object | — | — | [Cloud Run startup probe](https://cloud.google.com/run/docs/configuring/healthchecks) |
-
-> **Co-dependency**: `network` and `subnet` must both be specified together.
-
-### `runConfig` (job)
-
-| Field | Type | Constraint | Description |
-|-------|------|-----------|-------------|
-| `cpu` | int | `1`, `2`, `4`, or `8` | vCPU allocation |
-| `memoryMiB` | int | `128` – `32768` | Memory in MiB |
-| `taskCount` | int | ≥ 1 | Number of tasks |
-| `parallelism` | int | ≥ 1 | Parallel task execution |
-| `maxRetries` | int | ≥ 0 | Max retries per task |
-| `timeoutSeconds` | int | ≥ 1 | Task timeout |
-
-### `runConfig` (worker)
-
-Same as **service** minus `concurrency`.
-
-### `env` entries
-
-Each entry must have `variable` and exactly one of `value` or `secret`:
+Set `resource_type = "job"` for a Job body:
 
 ```yaml
-env:
-  # Plain value
-  - variable: LOG_LEVEL
-    value: info
-
-  # Secret Manager reference
-  - variable: API_KEY
-    secret: projects/123456789/secrets/API_KEY
-```
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `variable` | string | ✅ | Environment variable name |
-| `value` | string | ✅ (or `secret`) | Literal value |
-| `secret` | string | ✅ (or `value`) | `projects/<num>/secrets/<name>` |
-| `availability` | string | — | Optional availability scope |
-
-**Mutually exclusive**: specifying both `value` and `secret` on the same entry is an error.
-
-**Secret format**: must match `projects/<project-number>/secrets/<secret-name>`.
-
-### `serviceAccount`
-
-Must be a valid email format: `name@project.iam.gserviceaccount.com`
-
-### `cloudsqlConnector`
-
-Connection string format: `project:region:instance`
-
----
-
-## Validation Errors
-
-Invalid configurations are caught at **build time** and produce clear, actionable error messages. Example:
-
-```
-ERROR: Config validation failed for 'apphosting.dev.yaml' (resource_type=service):
-  - Unknown top-level key 'unknownKey'. Allowed: runConfig env serviceAccount cloudsqlConnector
-  - env 'MY_VAR' has both 'value' and 'secret' — must have exactly one
-  - runConfig.cpu must be 1, 2, 4, or 8, got '3'
-  - runConfig.memoryMiB must be 128–32768, got '64'
-  - serviceAccount must be a valid email, got 'bad-account'
-```
-
-All violations are reported at once — the validator does not stop at the first error.
-
----
-
-## Rule Reference
-
-### `cloudrun_service`
-
-```starlark
-cloudrun_service(
-    name,              # target base name
-    service_name,      # Cloud Run service name
-    image = "",        # optional container image URL
-    region,            # GCP region
-    config = None,     # single config file (Label)
-    base_config = None,# base config for multi-env (Label)
-    configs = [],      # list of env overlay configs (list[Label])
-    config_format = "apphosting.*.yaml",  # pattern for env extraction
-    project_id = "",   # project ID template (use {} for env name)
-)
-```
-
-### `cloudrun_job`
-
-Same interface as `cloudrun_service`, generates Cloud Run Job manifests.
-
-### `cloudrun_worker`
-
-Same interface as `cloudrun_service`, generates Worker Pool manifests.
-
----
-
-## Manifest Output
-
-The generated Knative YAML follows the [Cloud Run Service YAML schema](https://cloud.google.com/run/docs/reference/rest/v2/projects.locations.services):
-
-```yaml
-apiVersion: serving.knative.dev/v1
-kind: Service
-metadata:
-  name: myapp
-  labels:
-    cloud.googleapis.com/location: us-central1
-  annotations:
-    run.googleapis.com/ingress: all
-spec:
+template:
+  taskCount: 1
   template:
-    metadata:
-      annotations:
-        run.googleapis.com/execution-environment: gen2
-        autoscaling.knative.dev/minScale: "0"
-        autoscaling.knative.dev/maxScale: "10"
-        run.googleapis.com/cloudsql-instances: project:region:instance
-    spec:
-      timeoutSeconds: 300
-      containers:
-        - image: gcr.io/my-project/myapp:latest
-          resources:
-            limits:
-              cpu: 1000m
-              memory: 512Mi
-          env:
-            - name: LOG_LEVEL
-              value: info
-            - name: API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: API_KEY
-                  key: latest
-      containerConcurrency: 1000
-      serviceAccountName: myapp@proj.iam.gserviceaccount.com
+    timeout: 600s
+    maxRetries: 3
+    containers:
+      - name: app
 ```
 
-## Examples
+Set `resource_type = "worker"` for a WorkerPool body:
 
-See [docs/examples](docs/examples) for complete working examples.
+```yaml
+launchStage: BETA
+scaling:
+  manualInstanceCount: 1
+template:
+  containers:
+    - name: app
+      volumeMounts: [{ name: scratch, mountPath: /tmp/work }]
+  volumes:
+    - name: scratch
+      emptyDir: { medium: MEMORY, sizeLimit: 256Mi }
+```
+
+- Deploying a Job updates its definition. It does not start an execution unless the configuration sets `startExecutionToken` or `runExecutionToken`.
+- `emptyDir` volumes must use `medium: MEMORY`. `medium: DISK` is rejected until the `cloud.google.com/go/run` descriptors include it.
+
+These three snippets are built by [docs/examples](docs/examples/BUILD.bazel), and `//tests:tests_test` keeps them identical to the files that are built.
+
+### Several environments
+
+```starlark
+generate_manifest(
+    name = "manifest",
+    base_config = "manifest.yaml",
+    configs = ["manifest.dev.yaml", "manifest.prd.yaml"],  # manifest_dev.render, manifest_prd.render
+    image_container = "app",
+    image_repo = "us-west1-docker.pkg.dev/my-project/apps/web",
+    image_target = ":image",
+    resource_name = "web",
+)
+```
+
+## Rule reference
+
+`@rules_cloudrun//:defs.bzl` exports:
+
+| Symbol | Kind | Purpose |
+| --- | --- | --- |
+| `generate_manifest` | macro | Creates one `.render` target for each configuration. |
+| `cloudrun_render` | rule | The render action behind `generate_manifest`. It returns `CloudRunManifestInfo`. |
+| `CloudRunManifestInfo` | provider | `manifest`, `resource_type`, `resource_name`, `image_container`, and `image_repo` |
+| `extract_env_name` | function | Extracts `dev` from `:manifest.dev.yaml` using the `manifest.*.yaml` pattern. |
+| `cloudrun_deploy` | rule | Optional. A `bazel run` target that applies one rendered manifest. See [Deploying (optional)](#deploying-optional). |
+
+### `generate_manifest`
+
+| Argument | Default | Description |
+| --- | --- | --- |
+| `name` | required | With `config`, the target is `<name>.render`. With `configs`, each environment gets `<name>_<env>.render`. |
+| `resource_name` | required | The Cloud Run resource ID: 1-49 characters, lowercase letters, digits, and hyphens. |
+| `resource_type` | `"service"` | `service`, `job`, or `worker`. |
+| `config` / `configs` | none | Set exactly one of these: a single overlay, or one overlay for each environment. |
+| `base_config` | none | Shared YAML merged beneath every config. |
+| `config_format` | `"manifest.*.yaml"` | A `prefix*suffix` pattern. The `*` part becomes the environment name. |
+| `image` | `""` | A literal image reference. Cannot be combined with `image_repo` or `image_target`. |
+| `image_repo` + `image_target` | none | Pins `image_repo@<digest of image_target>`. Must be set together. The repository must not include a tag or digest. |
+| `image_container` | `""` | The container that receives the image. Required when the body has more than one container. |
+
+Standard attributes such as `visibility` and `tags` are forwarded to every `.render` target.
+
+Image modes:
+
+- **Digest-pinned build:** set `image_repo` and `image_target`. The image must be a rules_img `ImageManifestInfo`, or an `ImageIndexInfo` with exactly one `linux/amd64` variant. Its config is checked for an executable command.
+- **Literal:** set `image = "..."`. It works best as an immutable `repo@sha256:` reference.
+- **Supplied at deploy time:** set `image = "rules-cloudrun.invalid/override-required:latest"`, then have your deployment replace that container's image. With `cloudrun_deploy`, pass `--image=repo@sha256:...`.
+- **From the configuration:** containers can name their own images, for example sidecars.
+
+## Configuration format
+
+- Write Cloud Run v2 JSON field names in YAML: `containers`, `valueSource.secretKeyRef`, `scaling`, `vpcAccess`, `volumes`, and so on. The accepted fields and enum values are listed in the [field inventory](internal/manifest/testdata/field_inventory.txt). See the [Services](https://cloud.google.com/run/docs/reference/rest/v2/projects.locations.services), [Jobs](https://cloud.google.com/run/docs/reference/rest/v2/projects.locations.jobs), and [WorkerPools](https://cloud.google.com/run/docs/reference/rest/v2/projects.locations.workerPools) references.
+- Leave out `name` and fields that Cloud Run sets itself (`uid`, `etag`, `conditions`, and so on). The deployment supplies the resource name, project, and region.
+- `base_config` merges beneath each overlay following [RFC 7396](https://www.rfc-editor.org/rfc/rfc7396). Mappings merge, and **arrays replace completely**. The build rejects an array that is set in both the base and an overlay, so put `containers` in the overlays only. `null` in an overlay removes an inherited key. `null` in the base is rejected.
+- Quote string values, including `"false"`, `"0"`, and CPU values such as `'1'`. YAML merge keys (`<<`), explicit tags, and YAML 1.1 octal numbers are rejected.
+- Omitted fields take Cloud Run's API defaults. A Service that sets `resources` must also set `cpuIdle` explicitly: `true` gives request-based billing, `false` gives instance-based billing.
+- Secret references keep their project and version. Rendering never reads secret values.
+
+## Validation
+
+Every `.render` action validates configuration as an ordinary Bazel action, so invalid configuration fails `bazel build` and CI without credentials or network access. The checks are:
+
+- Structure, taken from the `cloud.google.com/go/run` protobuf descriptors (`runpb`): unknown fields, output-only fields, required fields, oneofs, enums, integer encodings, and durations.
+- A catalogue of rules with stable IDs such as `[compute.memory]` and `[probe.startup-budget]`. They cover CPU and memory combinations, GPUs, probes, containers, environment variables, volumes, networking, identity, and encryption.
+- Image checks for the pinned image: Linux amd64, and an executable command.
+
+See [docs/validation.md](docs/validation.md) for the full rule table and its limits.
+
+## Deploying (optional)
+
+`cloudrun_deploy` wraps the `//cmd/cloudrun-deploy` binary. That binary creates or updates the resource through the Cloud Run v2 REST API, waits for the operation, and then waits until the exact generation it wrote is ready. Nothing is deployed unless you declare a `cloudrun_deploy` target and `bazel run` it. `generate_manifest` never creates one.
+
+```starlark
+load("@rules_cloudrun//:defs.bzl", "cloudrun_deploy")
+
+cloudrun_deploy(
+    name = "deploy_dev",
+    labels = {"team": "web"},
+    manifest = ":manifest_dev.render",
+    project = "my-project-dev",
+    regions = ["us-west1"],
+)
+```
+
+```bash
+bazel run //web:deploy_dev                                           # create or update, then wait until ready
+bazel run //web:deploy_dev -- --validate-only                        # validateOnly request, single region only
+bazel run //web:deploy_dev -- --image=us-west1-docker.pkg.dev/my-project/apps/web@sha256:<64-hex-digest>
+```
+
+| Attribute | Description |
+| --- | --- |
+| `manifest` | A `.render` target. |
+| `project` | The Cloud Run project. |
+| `regions` | One region deploys a regional resource. For a Service, two or more deploy one multi-region Service at `locations/global` with `multiRegionSettings.regions`. Jobs and WorkerPools are deployed separately in each region. |
+| `resource_name`, `kind` | These default to the manifest's `resource_name` and `resource_type`. |
+| `labels` | Labels set on the resource. |
+
+Pass extra arguments after `--`. The binary also works without Bazel:
+
+```text
+cloudrun-deploy --manifest=manifest.render.json --project=my-project --region=us-west1 \
+  --name=web --kind=service [--image=repo@sha256:...] [--image-container=app] \
+  [--label=key=value ...] [--rollout-timeout=30m] [--validate-only]
+```
+
+- `--kind` is `service`, `job`, or `workerpool` (`worker` is also accepted).
+- `--image` replaces the selected container's image, and it must be a `repo@sha256:` digest reference.
+- Updates follow the resource's etag and are retried on conflicts, rate limits, and server errors. Labels and annotations written by other tools are kept when the manifest omits their map.
+- The binary prints each resource's name, its generation, and its ready revision or latest execution.
+- Authentication uses Application Default Credentials.
+
+> [!WARNING]
+> **Never send `validateOnly` requests to `locations/global`.** Cloud Run ignores `validateOnly` for multi-region Services: a "validation" request to `locations/global` really creates or updates the Service. `cloudrun-deploy` refuses `--validate-only` when a Service has two or more regions, and the conformance test never sends multi-region bodies. Do not work around this with `gcloud` or raw API calls.
+
+## Development
+
+```bash
+bazel build //...
+bazel test //...
+bazel run //:gazelle
+```
+
+`//internal/manifest:manifest_test` includes `TestConformance`. That test compares the local rules with Cloud Run's regional `validateOnly` endpoint, and it is skipped unless you pass `--test_arg=-conformance-project=<project>` (see [docs/validation.md](docs/validation.md)). After you bump `cloud.google.com/go/run`, `manifest_test` fails and logs the new field inventory. Review it, copy it into `internal/manifest/testdata/field_inventory.txt`, and add rules and rule cases for the new fields.
+
+`internal/runapi` and `internal/deploy` are visible only to `//cmd/cloudrun-deploy`, so the render path cannot depend on the API client.
+
+## License
+
+[MIT](LICENSE)

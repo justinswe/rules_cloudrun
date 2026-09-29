@@ -1,10 +1,24 @@
 load("@aspect_rules_lint//format:defs.bzl", "format_multirun")
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@gazelle//:def.bzl", "gazelle")
 
-# Export public files for use in other packages
+# gazelle:prefix github.com/justinswe/rules_cloudrun
+
 exports_files([
     "defs.bzl",
+    "README.md",
 ])
+
+bzl_library(
+    name = "defs",
+    srcs = ["defs.bzl"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//rules:deploy",
+        "//rules:manifest",
+        "//rules:providers",
+    ],
+)
 
 # Define format target that can be run with `bazel run //:format`
 format_multirun(

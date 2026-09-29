@@ -1,0 +1,45 @@
+template:
+  timeout: 300s
+  executionEnvironment: EXECUTION_ENVIRONMENT_GEN2
+  maxInstanceRequestConcurrency: 1000
+  containers:
+    - name: app
+      resources:
+        limits:
+          cpu: "1"
+          memory: 512Mi
+        cpuIdle: true
+      env:
+        - name: DATABASE_URL
+          value: postgresql://localhost:5432/myapp
+        - name: LOG_LEVEL
+          value: info
+        - name: API_KEY
+          valueSource:
+            secretKeyRef:
+              secret: projects/12345/secrets/API_KEY
+              version: latest
+        - name: JWT_SECRET
+          valueSource:
+            secretKeyRef:
+              secret: projects/12345/secrets/JWT_SECRET
+              version: latest
+        - name: DATABASE_HOST
+          value: my-project-dev:us-central1:myapp-db-dev
+        - name: ENVIRONMENT
+          value: development
+        - name: DEBUG
+          value: "true"
+      volumeMounts:
+        - name: cloudsql
+          mountPath: /cloudsql
+  serviceAccount: myapp-dev@my-project-dev.iam.gserviceaccount.com
+  volumes:
+    - name: cloudsql
+      cloudSqlInstance:
+        instances:
+          - my-project-dev:us-central1:myapp-db-dev
+ingress: INGRESS_TRAFFIC_ALL
+scaling:
+  minInstanceCount: 0
+  maxInstanceCount: 2

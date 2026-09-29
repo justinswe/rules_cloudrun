@@ -1,0 +1,10 @@
+launchStage: BETA
+scaling:
+  manualInstanceCount: 1
+template:
+  containers:
+    - name: app
+      volumeMounts: [{ name: scratch, mountPath: /tmp/work }]
+  volumes:
+    - name: scratch
+      emptyDir: { medium: MEMORY, sizeLimit: 256Mi }

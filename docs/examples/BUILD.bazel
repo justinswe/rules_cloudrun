@@ -1,69 +1,134 @@
-load("@rules_cloudrun//:defs.bzl", "cloudrun_job", "cloudrun_service", "cloudrun_worker")
-load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("//:defs.bzl", "cloudrun_deploy", "generate_manifest")
+load(":fixtures.bzl", "example_image")
 
-package(default_visibility = ["//visibility:public"])
-
-sh_binary(
-    name = "image.push",
-    srcs = ["image_push.sh"],
-)
-
-filegroup(
-    name = "image.digest",
-    srcs = ["image.digest.txt"],
-)
-
-# Example: Single-env service (Knative manifest generation)
-cloudrun_service(
+# 1. Simple Single-Environment Service Manifest
+generate_manifest(
     name = "example_service",
-    config = ":apphosting.yaml",
+    config = "manifest.yaml",
     image = "gcr.io/my-project/myapp:latest",
-    region = "us-central1",
-    service_name = "myapp",
+    resource_name = "myapp",
+    resource_type = "service",
+    visibility = ["//visibility:public"],
 )
 
-# Example: Multi-env service with auto-discovered environments
-cloudrun_service(
-    name = "example_multi_env",
-    base_config = ":apphosting.yaml",
-    config_format = "apphosting.*.yaml",
+# 2. Multi-Environment Service Manifest (Dev & Prd)
+generate_manifest(
+    name = "example_multi_env_dev",
+    base_config = "base.yaml",
+    config_format = "manifest.*.yaml",
     configs = [
-        ":apphosting.dev.yaml",
-        ":apphosting.prd.yaml",
+        "manifest.dev.yaml",
     ],
     image = "gcr.io/my-project/myapp:latest",
-    project_id = "my-project-{}-00",
-    region = "us-central1",
-    service_name = "myapp",
+    resource_name = "myapp",
+    resource_type = "service",
+    visibility = ["//visibility:public"],
 )
 
-cloudrun_service(
+generate_manifest(
+    name = "example_multi_env_prd",
+    base_config = "base.yaml",
+    config_format = "manifest.*.yaml",
+    configs = [
+        "manifest.prd.yaml",
+    ],
+    image = "gcr.io/my-project/myapp:latest",
+    resource_name = "myapp",
+    resource_type = "service",
+    visibility = ["//visibility:public"],
+)
+
+# 3. Digest-Pinned Service Manifest
+# :mock_image stands in for a rules_img image; its digest output group pins the image.
+
+generate_manifest(
     name = "example_digest_pinned_service",
-    config = ":apphosting.yaml",
-    image_repo = "us-central1-docker.pkg.dev/lavndr-ai/lavndr-ai/myapp",
-    region = "us-central1",
-    service_name = "myapp",
+    config = "manifest.yaml",
+    image_repo = "us-central1-docker.pkg.dev/my-project/my-repo/myapp",
+    image_target = ":mock_image",
+    resource_name = "myapp",
+    resource_type = "service",
+    visibility = ["//visibility:public"],
 )
 
-cloudrun_service(
+# 4. Service Manifest with Runtime Image Override
+# The placeholder image forces the deployment to provide an image (--image) at runtime.
+generate_manifest(
     name = "example_runtime_override_service",
-    config = ":apphosting.yaml",
-    region = "us-central1",
-    service_name = "myapp",
+    config = "manifest.yaml",
+    image = "rules-cloudrun.invalid/override-required:latest",
+    resource_name = "myapp",
+    resource_type = "service",
+    visibility = ["//visibility:public"],
 )
 
-cloudrun_job(
+# 5. Cloud Run Job Manifest
+generate_manifest(
     name = "example_digest_pinned_job",
-    config = ":apphosting.job.yaml",
-    image_repo = "us-central1-docker.pkg.dev/lavndr-ai/lavndr-ai/myjob",
-    job_name = "myjob",
-    region = "us-central1",
+    config = "manifest_job.yaml",
+    image_repo = "us-central1-docker.pkg.dev/my-project/my-repo/myjob",
+    image_target = ":mock_image",
+    resource_name = "myjob",
+    resource_type = "job",
+    visibility = ["//visibility:public"],
 )
 
-cloudrun_worker(
+# 6. Cloud Run Worker Manifest
+generate_manifest(
     name = "example_digest_pinned_worker",
-    config = ":apphosting.worker.yaml",
-    image_repo = "us-central1-docker.pkg.dev/lavndr-ai/lavndr-ai/myworker",
-    region = "us-central1",
-    worker_name = "myworker",
+    config = "manifest_worker.yaml",
+    image_repo = "us-central1-docker.pkg.dev/my-project/my-repo/myworker",
+    image_target = ":mock_image",
+    resource_name = "myworker",
+    resource_type = "worker",
+    visibility = ["//visibility:public"],
+)
+
+example_image(name = "mock_image")
+
+exports_files([
+    "manifest.yaml",
+    "manifest.dev.yaml",
+    "manifest.prd.yaml",
+    "manifest_job.yaml",
+    "manifest_worker.yaml",
+])
+
+# These configurations are reproduced verbatim in the README.
+[generate_manifest(
+    name = "readme_" + kind,
+    config = "readme_" + kind + ".yaml",
+    image = "example.com/web@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    image_container = "app",
+    resource_name = "web",
+    resource_type = kind,
+    visibility = ["//visibility:public"],
+) for kind in [
+    "service",
+    "job",
+    "worker",
+]]
+
+exports_files([
+    "readme_service.yaml",
+    "readme_job.yaml",
+    "readme_worker.yaml",
+])
+
+# 7. Optional direct deployment (build-only here: running it calls the Cloud Run API)
+cloudrun_deploy(
+    name = "example_deploy",
+    labels = {"team": "web"},
+    manifest = ":readme_service.render",
+    project = "my-project",
+    regions = ["us-west1"],
+    visibility = ["//visibility:public"],
+)
+
+bzl_library(
+    name = "fixtures",
+    srcs = ["fixtures.bzl"],
+    visibility = ["//visibility:public"],
+    deps = ["@rules_img//img:providers"],
 )

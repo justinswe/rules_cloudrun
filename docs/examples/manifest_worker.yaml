@@ -1,0 +1,24 @@
+template:
+  containers:
+    - name: app
+      resources:
+        limits:
+          cpu: "1"
+          memory: 512Mi
+      env:
+        - name: ENVIRONMENT
+          value: development
+      volumeMounts:
+        - name: worker-tmp
+          mountPath: /tmp
+  volumes:
+    - name: worker-tmp
+      emptyDir:
+        medium: MEMORY
+        sizeLimit: 256Mi
+scaling:
+  manualInstanceCount: 0
+instanceSplits:
+  - type: INSTANCE_SPLIT_ALLOCATION_TYPE_LATEST
+    percent: 100
+launchStage: BETA

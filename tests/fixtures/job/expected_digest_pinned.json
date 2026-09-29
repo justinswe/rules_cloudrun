@@ -1,0 +1,31 @@
+{
+  "template": {
+    "parallelism": 1,
+    "taskCount": 1,
+    "template": {
+      "containers": [
+        {
+          "image": "us-central1-docker.pkg.dev/my-project/my-repo/myjob@sha256:46e099f6d3eab8fc3246ad867aace15a5503a4cf6c7c54f2ffac5c28ea1facad",
+          "name": "app",
+          "resources": {
+            "limits": {
+              "cpu": "1",
+              "memory": "512Mi"
+            }
+          }
+        }
+      ],
+      "maxRetries": 3,
+      "timeout": "600s",
+      "vpcAccess": {
+        "egress": "ALL_TRAFFIC",
+        "networkInterfaces": [
+          {
+            "network": "my-vpc",
+            "subnetwork": "my-subnet"
+          }
+        ]
+      }
+    }
+  }
+}

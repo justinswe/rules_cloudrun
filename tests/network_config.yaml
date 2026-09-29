@@ -1,4 +1,0 @@
-runConfig:
-  network: default
-  subnet: my-subnet
-  vpcEgress: private-ranges-only

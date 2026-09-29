@@ -1,0 +1,80 @@
+{
+  "ingress": "INGRESS_TRAFFIC_ALL",
+  "scaling": {
+    "maxInstanceCount": 2,
+    "minInstanceCount": 0
+  },
+  "template": {
+    "containers": [
+      {
+        "env": [
+          {
+            "name": "DATABASE_URL",
+            "value": "postgresql://localhost:5432/myapp"
+          },
+          {
+            "name": "LOG_LEVEL",
+            "value": "info"
+          },
+          {
+            "name": "API_KEY",
+            "valueSource": {
+              "secretKeyRef": {
+                "secret": "projects/12345/secrets/API_KEY",
+                "version": "latest"
+              }
+            }
+          },
+          {
+            "name": "JWT_SECRET",
+            "valueSource": {
+              "secretKeyRef": {
+                "secret": "projects/12345/secrets/JWT_SECRET",
+                "version": "latest"
+              }
+            }
+          },
+          {
+            "name": "DATABASE_HOST",
+            "value": "my-project-dev:us-central1:myapp-db-dev"
+          },
+          {
+            "name": "ENVIRONMENT",
+            "value": "development"
+          },
+          {
+            "name": "DEBUG",
+            "value": "true"
+          }
+        ],
+        "image": "gcr.io/my-project/myapp:latest",
+        "name": "app",
+        "resources": {
+          "cpuIdle": true,
+          "limits": {
+            "cpu": "1",
+            "memory": "512Mi"
+          }
+        },
+        "volumeMounts": [
+          {
+            "mountPath": "/cloudsql",
+            "name": "cloudsql"
+          }
+        ]
+      }
+    ],
+    "executionEnvironment": "EXECUTION_ENVIRONMENT_GEN2",
+    "maxInstanceRequestConcurrency": 1000,
+    "serviceAccount": "myapp-dev@my-project-dev.iam.gserviceaccount.com",
+    "timeout": "300s",
+    "volumes": [
+      {
+        "cloudSqlInstance": {
+          "instances": ["my-project-dev:us-central1:myapp-db-dev"]
+        },
+        "name": "cloudsql"
+      }
+    ]
+  }
+}

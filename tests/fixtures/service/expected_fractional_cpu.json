@@ -1,0 +1,31 @@
+{
+  "ingress": "INGRESS_TRAFFIC_ALL",
+  "scaling": {
+    "maxInstanceCount": 3,
+    "minInstanceCount": 0
+  },
+  "template": {
+    "containers": [
+      {
+        "env": [
+          {
+            "name": "LOG_LEVEL",
+            "value": "info"
+          }
+        ],
+        "image": "gcr.io/my-project/myapp:latest",
+        "name": "app",
+        "resources": {
+          "cpuIdle": true,
+          "limits": {
+            "cpu": "0.5",
+            "memory": "512Mi"
+          }
+        }
+      }
+    ],
+    "executionEnvironment": "EXECUTION_ENVIRONMENT_GEN1",
+    "maxInstanceRequestConcurrency": 1,
+    "timeout": "300s"
+  }
+}

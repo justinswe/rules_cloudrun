@@ -1,9 +1,0 @@
-# Export the public macros and rules for use in other BUILD files
-exports_files([
-    "common.bzl",
-    "render.bzl",
-    "deploy.bzl",
-    "service.bzl",
-    "job.bzl",
-    "worker.bzl",
-])

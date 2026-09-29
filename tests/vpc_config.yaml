@@ -1,3 +1,0 @@
-runConfig:
-  vpcConnector: lavndr-vpc-connector
-  vpcEgress: all-traffic

@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "deploy",
+    srcs = ["deploy.go"],
+    importpath = "github.com/justinswe/rules_cloudrun/internal/deploy",
+    visibility = ["//cmd/cloudrun-deploy:__pkg__"],  # Keeps deployment off the render path.
+    deps = [
+        "//internal/manifest",
+        "//internal/runapi",
+        "@com_github_justinswe_std//errors",
+    ],
+)
+
+go_test(
+    name = "deploy_test",
+    srcs = ["deploy_test.go"],
+    embed = [":deploy"],
+    deps = [
+        "//internal/runapi",
+        "@com_github_stretchr_testify//require",
+    ],
+)

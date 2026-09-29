@@ -1,9 +1,0 @@
-runConfig:
-  cpu: 1
-  memoryMiB: 512
-  minInstances: 0
-  maxInstances: 3
-
-env:
-  - variable: ENVIRONMENT
-    value: development
